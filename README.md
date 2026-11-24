@@ -13,7 +13,7 @@ Bản viết lại hoàn toàn bằng **Rust thuần** từ [antigravity-custom-
 | **Kích thước binary release** | Node runtime (~80 MB+) | **`agy-theme-daemon.exe` 1.13 MB** / **`agy-theme.exe` 1.22 MB** |
 | **Khởi chạy ngầm Windows** | `wscript.exe` + `silent-start.vbs` | **Windows Task Scheduler (`AntigravityCustomTheme`)** chạy trực tiếp `agy-theme-daemon.exe` (`windows_subsystem = "windows"`, tách biệt khỏi Antigravity, tắt/mở app không mất theme) |
 | **Đồng bộ nhiều cửa sổ** | Re-inject lại toàn bộ payload (~700 KB+) | **Delta sync ~150 byte** qua `applyTheme(..., { skipSave: true })` |
-| **CSS inject trong Electron** | Trùng chuỗi ảnh nền 2 lần (~1.38 MB) | **Gom biến `--agy-bg-layers` giảm 50% (~705 KB)**, 0 phần tử `backdrop-filter: blur()` live |
+| **CSS inject trong Electron** | Trùng chuỗi ảnh nền base64 (~1.38 MB), 7 rule `:has()`, 7 lớp `will-change` | **Đổi sang `blob:` URL chỉ còn ~30 KB (giảm 45×)**, **0 `:has()`**, **0 live blur**, **bỏ `Runtime.enable`** tránh giữ V8 console heap |
 | **Quản lý script hot-reload** | Dễ tích tụ document script cũ | Tự dọn `Page.removeScriptToEvaluateOnNewDocument` trước khi nạp bản mới |
 
 ## Cải tiến tối ưu RAM & FPS thêm trong `engine/core.js`

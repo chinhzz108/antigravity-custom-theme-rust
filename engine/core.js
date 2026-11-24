@@ -135,17 +135,64 @@
 
   const MAX_BLUR_CACHE = 4;
 
+  // Convert large base64 data: URIs into tiny ~60-byte blob: Object URLs so Blink never
+  // parses or inherits 700 KB CSS strings across thousands of DOM nodes.
+  function toShortBlobUrl(uri) {
+    if (!uri || !uri.startsWith('data:') || typeof URL === 'undefined' || typeof URL.createObjectURL !== 'function') {
+      return uri;
+    }
+    const cache = window.__AGY_BLOB_CACHE__ instanceof Map
+      ? window.__AGY_BLOB_CACHE__
+      : (window.__AGY_BLOB_CACHE__ = new Map());
+    const key = `${uri.slice(0, 80)}|${uri.length}|${uri.slice(-24)}`;
+    const existing = cache.get(key);
+    if (existing) return existing;
+    try {
+      const comma = uri.indexOf(',');
+      if (comma === -1) return uri;
+      const meta = uri.slice(5, comma);
+      const dataPart = uri.slice(comma + 1);
+      const mime = (meta.split(';')[0] || 'application/octet-stream').trim();
+      let blob;
+      if (meta.includes(';base64')) {
+        const bin = atob(dataPart);
+        const bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        blob = new Blob([bytes], { type: mime });
+      } else {
+        blob = new Blob([decodeURIComponent(dataPart)], { type: mime });
+      }
+      const objUrl = URL.createObjectURL(blob);
+      cache.set(key, objUrl);
+      while (cache.size > 16) {
+        const oldestKey = cache.keys().next().value;
+        const oldUrl = cache.get(oldestKey);
+        cache.delete(oldestKey);
+        if (oldUrl && oldUrl.startsWith('blob:')) {
+          try { URL.revokeObjectURL(oldUrl); } catch (e) {}
+        }
+      }
+      return objUrl;
+    } catch (e) {
+      return uri;
+    }
+  }
+
   function putBlurCache(key, val) {
     const cache = window.__AGY_BLUR_CACHE__ || (window.__AGY_BLUR_CACHE__ = new Map());
     if (cache.has(key)) cache.delete(key);
     cache.set(key, val);
     while (cache.size > MAX_BLUR_CACHE) {
       const oldestKey = cache.keys().next().value;
+      const oldVal = cache.get(oldestKey);
       cache.delete(oldestKey);
+      if (typeof oldVal === 'string' && oldVal.startsWith('blob:')) {
+        try { URL.revokeObjectURL(oldVal); } catch (e) {}
+      }
     }
   }
 
-  // Pre-bake L-shaped header/sidebar glass blur (debounced + LRU-capped) to avoid per-frame GPU backdrop readback
+  // Pre-bake L-shaped header/sidebar glass blur (debounced + LRU-capped + blob: URL) to avoid per-frame GPU backdrop readback
   function syncPrebakedGlass(wpUrl, overlayRgb, overlayAlpha, tintBg, blurStr, deferMs = 0) {
     if (window.__AGY_BLUR_TIMER__) {
       clearTimeout(window.__AGY_BLUR_TIMER__);
@@ -195,14 +242,29 @@
             ctx.fillStyle = tintBg;
             ctx.fillRect(0, 0, w, h);
           }
-          const baked = canvas.toDataURL('image/webp', 0.85);
-          canvas.width = 0;
-          canvas.height = 0;
-          putBlurCache(key, baked);
-          const cssVal = 'url("' + baked + '")';
-          window.__AGY_LAST_GLASS_BG__ = cssVal;
-          const curShell = document.querySelector('.agy-shell');
-          if (curShell) curShell.style.setProperty('--agy-l-glass-bg', cssVal);
+          const applyBakedUrl = (bakedUrl) => {
+            canvas.width = 0;
+            canvas.height = 0;
+            if (!bakedUrl || window.__AGY_BLUR_GEN__ !== gen) {
+              if (bakedUrl && bakedUrl.startsWith('blob:')) {
+                try { URL.revokeObjectURL(bakedUrl); } catch (e) {}
+              }
+              return;
+            }
+            putBlurCache(key, bakedUrl);
+            const cssVal = 'url("' + bakedUrl + '")';
+            window.__AGY_LAST_GLASS_BG__ = cssVal;
+            const curShell = document.querySelector('.agy-shell');
+            if (curShell) curShell.style.setProperty('--agy-l-glass-bg', cssVal);
+          };
+          if (typeof canvas.toBlob === 'function' && typeof URL.createObjectURL === 'function') {
+            canvas.toBlob((blob) => {
+              if (blob) applyBakedUrl(URL.createObjectURL(blob));
+              else applyBakedUrl(canvas.toDataURL('image/webp', 0.85));
+            }, 'image/webp', 0.85);
+          } else {
+            applyBakedUrl(canvas.toDataURL('image/webp', 0.85));
+          }
         } catch (e) {}
       };
       img.src = wpUrl;
@@ -268,7 +330,8 @@
 
     const mainTheme = THEMES[st.themeName] || THEMES[DEFAULT_THEME_KEY];
     const bubbleTheme = THEMES[st.bubbleName] || mainTheme;
-    const wpUrl = st.customWp || mainTheme.wallpaper || '';
+    const rawWpUrl = st.customWp || mainTheme.wallpaper || '';
+    const wpUrl = toShortBlobUrl(rawWpUrl);
 
     const oldLegacy = document.getElementById('antigravity-ho-ly-chibi-theme');
     if (oldLegacy) oldLegacy.remove();
@@ -300,16 +363,11 @@
 
     const wpCss = st.wpEnabled ? `
       .agy-shell {
-        --agy-bg-layers: ${bgLayers};
-        background-image: var(--agy-bg-layers) !important;
+        background-image: ${bgLayers} !important;
         background-size: cover !important;
         background-position: ${bgPosition} !important;
         background-repeat: no-repeat !important;
         image-rendering: auto !important;
-      }
-      /* Keep transparent scrollers on GPU composited-scrolling layers */
-      .agy-shell .overflow-y-auto {
-        will-change: scroll-position;
       }
       .agy-sheet,
       .agy-inset-shell,
@@ -332,7 +390,7 @@
         inset: 0;
         z-index: 0;
         pointer-events: none;
-        background-image: var(--agy-bg-layers);
+        background-image: ${bgLayers};
         background-size: cover;
         background-position: ${bgPosition};
         background-repeat: no-repeat;
@@ -497,8 +555,8 @@
     const pillBorder = mainTheme.pillBorder || (isLight ? 'rgba(15, 23, 42, 0.16)' : 'rgba(255, 255, 255, 0.16)');
     const preCodeBg = isLight ? `rgba(${overlayRgb}, 0.72)` : `rgba(${overlayRgb}, 0.56)`;
 
-    const effectiveUserAvatar = st.userAvatar === 'none' ? '' : (st.userAvatar || mainTheme.userAvatar || '');
-    const effectiveAgentAvatar = st.agentAvatar === 'none' ? '' : (st.agentAvatar || mainTheme.agentAvatar || '');
+    const effectiveUserAvatar = toShortBlobUrl(st.userAvatar === 'none' ? '' : (st.userAvatar || mainTheme.userAvatar || ''));
+    const effectiveAgentAvatar = toShortBlobUrl(st.agentAvatar === 'none' ? '' : (st.agentAvatar || mainTheme.agentAvatar || ''));
     const avSize = Math.min(52, Math.max(22, Number(st.avatarSize) || 32));
     const avAgentSize = Math.max(22, avSize - 2);
     const avRadius = Math.min(50, Math.max(0, Number.isFinite(Number(st.avatarRadius)) ? Number(st.avatarRadius) : 50));
@@ -588,8 +646,7 @@
         transform: none !important;
         box-sizing: border-box !important;
       }
-      .agy-shell [data-testid="agent-response"] .md-table-scroll,
-      .agy-shell [data-testid="agent-response"] :has(> table):not(.md-table-frame) {
+      .agy-shell [data-testid="agent-response"] .md-table-scroll {
         display: block !important;
         width: 100% !important;
         min-width: 0 !important;
@@ -635,19 +692,19 @@
         scrollbar-width: auto !important;
         scrollbar-color: auto !important;
       }
-      .agy-shell [data-testid="agent-response"] :is(.md-table-scroll, :has(> table):not(.md-table-frame), .md-math-display, .katex-display, :not(.md-math-display):not(.katex-display) > .katex)::-webkit-scrollbar {
+      .agy-shell [data-testid="agent-response"] :is(.md-table-scroll, .md-math-display, .katex-display, :not(.md-math-display):not(.katex-display) > .katex)::-webkit-scrollbar {
         height: 8px !important;
         display: block !important;
       }
-      .agy-shell [data-testid="agent-response"] :is(.md-table-scroll, :has(> table):not(.md-table-frame), .md-math-display, .katex-display, :not(.md-math-display):not(.katex-display) > .katex)::-webkit-scrollbar-track {
+      .agy-shell [data-testid="agent-response"] :is(.md-table-scroll, .md-math-display, .katex-display, :not(.md-math-display):not(.katex-display) > .katex)::-webkit-scrollbar-track {
         background: ${isLight ? 'rgba(15, 23, 42, 0.06)' : 'rgba(255, 255, 255, 0.06)'} !important;
         border-radius: 9999px !important;
       }
-      .agy-shell [data-testid="agent-response"] :is(.md-table-scroll, :has(> table):not(.md-table-frame), .md-math-display, .katex-display, :not(.md-math-display):not(.katex-display) > .katex)::-webkit-scrollbar-thumb {
+      .agy-shell [data-testid="agent-response"] :is(.md-table-scroll, .md-math-display, .katex-display, :not(.md-math-display):not(.katex-display) > .katex)::-webkit-scrollbar-thumb {
         background: ${isLight ? 'rgba(15, 23, 42, 0.34)' : 'rgba(148, 163, 184, 0.48)'} !important;
         border-radius: 9999px !important;
       }
-      .agy-shell [data-testid="agent-response"] :is(.md-table-scroll, :has(> table):not(.md-table-frame), .md-math-display, .katex-display, :not(.md-math-display):not(.katex-display) > .katex)::-webkit-scrollbar-thumb:hover {
+      .agy-shell [data-testid="agent-response"] :is(.md-table-scroll, .md-math-display, .katex-display, :not(.md-math-display):not(.katex-display) > .katex)::-webkit-scrollbar-thumb:hover {
         background: ${isLight ? 'rgba(15, 23, 42, 0.54)' : 'rgba(148, 163, 184, 0.72)'} !important;
       }
       .agy-shell [data-testid="agent-response"] table {
@@ -712,14 +769,14 @@
         ) !important;
       }
       ` : ''}
-      body:not([data-has-browser-hole="true"]) .agy-shell [data-side-panel-body="true"]:not([data-has-browser-hole="true"]):not(:has([data-browser-hole]:not([data-browser-hole="false"]))) {
+      body:not([data-has-browser-hole="true"]) .agy-shell [data-side-panel-body="true"]:not([data-has-browser-hole="true"]) {
         background: ${mainTheme.aiCardBg || `rgba(${overlayRgb}, 0.72)`} !important;
         ${isLight ? `color: ${uiInk} !important;` : ''}
         backdrop-filter: none !important;
         border-left: 1px solid ${mainTheme.aiCardBorder || (isLight ? 'rgba(15, 23, 42, 0.14)' : 'rgba(255, 255, 255, 0.14)')} !important;
         box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04) !important;
       }
-      body:not([data-has-browser-hole="true"]) .agy-shell [data-side-panel-body="true"]:not([data-has-browser-hole="true"]):not(:has([data-browser-hole]:not([data-browser-hole="false"]))) pre {
+      body:not([data-has-browser-hole="true"]) .agy-shell [data-side-panel-body="true"]:not([data-has-browser-hole="true"]) pre {
         background: ${preCodeBg} !important;
         border: 1px solid ${mainTheme.aiCardBorder || (isLight ? 'rgba(15, 23, 42, 0.14)' : 'rgba(255, 255, 255, 0.14)')} !important;
         border-radius: 10px !important;
@@ -1023,7 +1080,22 @@
     if (window.__AGY_SAVE_TIMER__) { clearTimeout(window.__AGY_SAVE_TIMER__); window.__AGY_SAVE_TIMER__ = 0; }
     if (window.__AGY_BLUR_TIMER__) { clearTimeout(window.__AGY_BLUR_TIMER__); window.__AGY_BLUR_TIMER__ = 0; }
     if (window.__AGY_TICK_TIMER__) { clearTimeout(window.__AGY_TICK_TIMER__); window.__AGY_TICK_TIMER__ = 0; }
-    if (window.__AGY_BLUR_CACHE__ instanceof Map) { window.__AGY_BLUR_CACHE__.clear(); }
+    if (window.__AGY_BLUR_CACHE__ instanceof Map) {
+      window.__AGY_BLUR_CACHE__.forEach((v) => {
+        if (typeof v === 'string' && v.startsWith('blob:')) {
+          try { URL.revokeObjectURL(v); } catch (e) {}
+        }
+      });
+      window.__AGY_BLUR_CACHE__.clear();
+    }
+    if (window.__AGY_BLOB_CACHE__ instanceof Map) {
+      window.__AGY_BLOB_CACHE__.forEach((v) => {
+        if (typeof v === 'string' && v.startsWith('blob:')) {
+          try { URL.revokeObjectURL(v); } catch (e) {}
+        }
+      });
+      window.__AGY_BLOB_CACHE__.clear();
+    }
     if (window.__AGY_SHELL_RO__) {
       try { window.__AGY_SHELL_RO__.disconnect(); } catch (e) {}
       window.__AGY_SHELL_RO__ = null;

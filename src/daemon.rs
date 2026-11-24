@@ -222,9 +222,11 @@ fn run_session_loop(
         Ok(())
     };
 
-    if send_cdp(&mut ws, &mut next_id, "Page.enable", json!({})).is_err()
-        || send_cdp(&mut ws, &mut next_id, "Runtime.enable", json!({})).is_err()
-    {
+    // Only enable Page (for top-frame navigation & addScriptToEvaluateOnNewDocument).
+    // Deliberately omit `Runtime.enable`: `Runtime.addBinding` + `Runtime.bindingCalled`
+    // and `Runtime.evaluate` work without it, and skipping `Runtime.enable` avoids V8
+    // console stack-trace capture and RemoteObject heap retention in Electron.
+    if send_cdp(&mut ws, &mut next_id, "Page.enable", json!({})).is_err() {
         return;
     }
     let _ = send_cdp(
