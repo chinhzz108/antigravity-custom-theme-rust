@@ -34,9 +34,33 @@ Ngoài việc viết lại toàn bộ backend/CLI/daemon bằng Rust, `engine/co
 4. **`Ember Crimson`** — Pure-CSS obsidian ấm + cam/đỏ hổ phách (0 ảnh)
 5. **`Kyoto Matcha Light`** — Chế độ **Light Glass (`isLight: true`)** ban ngày chữ đậm dễ đọc (0 ảnh)
 
-## Hướng dẫn sử dụng nhanh
+## Hướng dẫn cài đặt & sử dụng nhanh (Windows)
 
-### 1. Biên dịch bản Release (chỉ cần chạy 1 lần)
+### Cách 1: Click đúp `agy-theme.bat` (Khuyên dùng — không cần gõ lệnh)
+
+1. Tải/clone repo về máy (cần cài sẵn [Rust](https://rustup.rs/) để tự build lần đầu).
+2. **Double-click vào file [`agy-theme.bat`](agy-theme.bat)** ở thư mục gốc:
+   - Lần đầu mở, file `.bat` sẽ tự chạy `cargo build --release` nếu chưa có binary.
+   - Hiện menu tiếng Việt với đầy đủ chức năng:
+     - **`[1]` Cài đặt & chạy ngầm tự động**: build payload (`~4 ms`), patch cờ `--remote-debugging-port=0` vào shortcut `Antigravity.lnk`, đăng ký & bật **Windows Scheduled Task (`AntigravityCustomTheme`)** chạy tách biệt khỏi Antigravity.
+     - **`[2]` Build lại theme**: sau khi sửa `themes/themes.json` hoặc thêm ảnh nền mới (daemon đang chạy sẽ tự hot-reload trong ~150 ms).
+     - **`[3]` Kiểm tra trạng thái & RAM thực tế** (`status`).
+     - **`[4]` Kiểm tra live trên Antigravity** (`verify` — xác nhận `themeActive: true`, `hasLiveBlurRule: false`).
+     - **`[5]` Xem danh sách preset** (`themes`).
+     - **`[6]` Chế độ Watch Themes**: tự động rebuild + hot-reload mỗi khi bạn lưu `themes/themes.json` hoặc `engine/core.js`.
+     - **`[7]` Tạm dừng daemon** (`stop`).
+     - **`[8]` Gỡ cài đặt sạch sẽ** (`uninstall` — xoá Scheduled Task, dừng daemon và khôi phục giao diện mặc định).
+     - **`[9]` Build lại binary Rust** (`cargo build --release` an toàn — tự dừng daemon trước để không bị khóa file `.exe`).
+3. **Sau lần bấm `[1]` đầu tiên (Antigravity v2.33.0+):**
+   - Chuột phải icon **Antigravity ở System Tray → Quit** (thoát hẳn, không chỉ bấm X).
+   - Mở lại Antigravity từ shortcut **Desktop** hoặc **Start Menu** *(nếu bạn ghim icon trên Taskbar, hãy Unpin icon cũ rồi Pin lại từ Start Menu để giữ cờ `--remote-debugging-port=0`)*.
+   - Bấm nút **✨ Custom theme** ngay dưới mục **Customizations** ở sidebar trái để đổi theme, chỉnh độ tối/blur, hoặc upload ảnh nền & avatar!
+
+> `agy-theme.bat` cũng hỗ trợ truyền tham số trực tiếp từ CMD/PowerShell, ví dụ: `agy-theme.bat install`, `agy-theme.bat build`, `agy-theme.bat status`, `agy-theme.bat verify`, `agy-theme.bat uninstall`.
+
+### Cách 2: Dùng trực tiếp dòng lệnh (`agy-theme.exe`)
+
+#### 1. Biên dịch bản Release (chỉ cần chạy 1 lần)
 
 ```powershell
 cargo build --release
@@ -46,7 +70,7 @@ Tạo ra 2 file thực thi siêu gọn:
 - `target\release\agy-theme.exe` — Công cụ CLI đầy đủ
 - `target\release\agy-theme-daemon.exe` — Daemon chạy ngầm không cửa sổ console
 
-### 2. Cài đặt & chạy ngầm tự khởi động cùng Windows
+#### 2. Cài đặt & chạy ngầm tự khởi động cùng Windows
 
 ```powershell
 .\target\release\agy-theme.exe install
@@ -59,9 +83,7 @@ Lệnh `install` sẽ tự động:
 3. Đăng ký & khởi chạy ngay **Windows Scheduled Task (`AntigravityCustomTheme`)** chạy trực tiếp `agy-theme-daemon.exe` tách biệt khỏi vòng đời Antigravity (tự fallback sang Startup `.lnk` nếu không có quyền Task Scheduler; dùng `--no-startup` nếu chỉ muốn chạy phiên hiện tại).
 4. Xác nhận PID + lượng RAM tiêu thụ của daemon.
 
-> **Lưu ý cho Antigravity v2.33.0+:** Sau lần `install` đầu tiên (hoặc sau khi Antigravity tự cập nhật), hãy **Quit hẳn Antigravity từ System Tray** rồi mở lại từ **Start Menu** để tạo `DevToolsActivePort`. Nếu dùng icon ghim trên Taskbar, hãy Unpin rồi Pin lại từ Start Menu.
-
-### 3. Các lệnh CLI hữu ích
+#### 3. Các lệnh CLI hữu ích
 
 ```powershell
 # Biên dịch lại payload sau khi sửa themes/themes.json (~4 ms, daemon tự hot-reload)
@@ -100,7 +122,8 @@ Có thể tuỳ chỉnh vị trí `DevToolsActivePort` bất cứ lúc nào bằ
 ## Cấu trúc dự án
 
 ```text
-custom anti/
+antigravity-custom-theme-rust/
+├── agy-theme.bat               # Launcher 1-click menu tương tác cho Windows (tự build nếu thiếu binary)
 ├── Cargo.toml                  # Crate thuần Rust (không cần C compiler / MinGW PATH)
 ├── SKILL.md                    # Định nghĩa Antigravity Agent Skill bản Rust
 ├── README.md
