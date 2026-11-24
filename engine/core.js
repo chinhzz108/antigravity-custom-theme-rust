@@ -403,7 +403,9 @@
       [class*="--shell-canvas"],
       .agy-shell div.absolute.bottom-0.pointer-events-none,
       .agy-shell [class*="z-50"] .pointer-events-none.right-full,
-      .agy-shell .bg-background:not(.settings-modal-container):not(.settings-modal-container *):not(#agy-custom-theme-modal-backdrop *) {
+      .agy-shell [data-main-content-body="true"] .bg-background,
+      .agy-shell [data-side-panel-body="true"] .bg-background,
+      .agy-shell [data-testid="sidebar-split"] .bg-background {
         background: transparent !important;
         background-color: transparent !important;
         background-image: none !important;
@@ -446,9 +448,10 @@
     `;
 
     const defaultCornerSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Cpath d='M2 20 L2 6 Q2 2 6 2 L20 2' stroke='%23fbbf24' stroke-width='1.5' fill='none' opacity='0.65'/%3E%3Ccircle cx='6' cy='6' r='2' fill='%23fbbf24' opacity='0.75'/%3E%3C/svg%3E";
-    const cornerFiligreeUrl = bubbleTheme.cornerSvg || defaultCornerSvg;
+    const cornerFiligreeUrl = toShortBlobUrl(bubbleTheme.cornerSvg || defaultCornerSvg);
+    const stickerUrl = toShortBlobUrl(bubbleTheme.sticker || '');
 
-    const bubbleStickerCss = bubbleTheme.sticker ? (bubbleTheme.isOrnament ? `
+    const bubbleStickerCss = stickerUrl ? (bubbleTheme.isOrnament ? `
       .group\\/user-input-step {
         padding-top: 18px !important;
       }
@@ -459,13 +462,12 @@
         right: ${bubbleTheme.stickerRight}px;
         width: ${bubbleTheme.stickerW}px;
         height: ${bubbleTheme.stickerH}px;
-        background-image: url("${bubbleTheme.sticker}");
+        background-image: url("${stickerUrl}");
         background-size: contain;
         background-position: center;
         background-repeat: no-repeat;
         z-index: 25;
         pointer-events: none;
-        transition: transform 0.2s ease;
       }
     ` : `
       .group\\/user-input-step {
@@ -478,19 +480,18 @@
         right: ${bubbleTheme.stickerRight}px;
         width: ${bubbleTheme.stickerW}px;
         height: ${bubbleTheme.stickerH}px;
-        background-image: url("${bubbleTheme.sticker}");
+        background-image: url("${stickerUrl}");
         background-size: contain;
         background-position: bottom center;
         background-repeat: no-repeat;
         z-index: 25;
         pointer-events: none;
-        transition: transform 0.2s ease;
       }
     `) : `
       .agy-user-bubble-frame::before { display: none !important; }
     `;
 
-    const showInputSticker = st.inputStyle !== 'minimal' && bubbleTheme.sticker;
+    const showInputSticker = st.inputStyle !== 'minimal' && stickerUrl;
     const inputStickerCss = showInputSticker ? (bubbleTheme.isOrnament ? `
       .surface-composer {
         margin-top: 16px !important;
@@ -503,7 +504,7 @@
         right: 16px;
         width: ${bubbleTheme.stickerW + 8}px;
         height: ${bubbleTheme.stickerH + 2}px;
-        background-image: url("${bubbleTheme.sticker}");
+        background-image: url("${stickerUrl}");
         background-size: contain;
         background-position: center;
         background-repeat: no-repeat;
@@ -537,7 +538,7 @@
         right: 16px;
         width: ${bubbleTheme.stickerW + 6}px;
         height: ${bubbleTheme.stickerH + 6}px;
-        background-image: url("${bubbleTheme.sticker}");
+        background-image: url("${stickerUrl}");
         background-size: contain;
         background-position: bottom center;
         background-repeat: no-repeat;
@@ -632,21 +633,25 @@
       ` : ''}
     `;
 
-    const sidebarEnhanceCss = (mainTheme.sidebarEnhanceText || isLight) ? `
+    const sidebarEnhanceCss = isLight ? `
       .agy-shell .bg-sidebar a,
       .agy-shell .bg-sidebar span,
       .agy-shell .bg-sidebar button {
-        color: ${isLight ? uiInk : 'inherit'};
-        text-shadow: ${isLight ? 'none' : '0 1px 3px rgba(0, 0, 0, 0.88)'};
+        color: ${uiInk};
       }
       .agy-shell .bg-sidebar .text-muted-foreground,
       .agy-shell .bg-sidebar .text-secondary-foreground {
         color: ${uiMutedInk} !important;
       }
-    ` : '';
+    ` : (mainTheme.sidebarEnhanceText ? `
+      .agy-shell .bg-sidebar .text-muted-foreground,
+      .agy-shell .bg-sidebar .text-secondary-foreground {
+        color: ${uiMutedInk} !important;
+      }
+    ` : '');
 
     const aiCardCss = mainTheme.aiCardBg ? `
-      /* Translucent reading card for AI responses (zero live backdrop-filter for max 120fps scroll) */
+      /* Translucent reading card for AI responses (zero live backdrop-filter, lightweight shadow) */
       .agy-shell [data-testid="agent-response"] {
         background: ${mainTheme.aiCardBg} !important;
         ${isLight ? `color: ${uiInk} !important;` : ''}
@@ -654,7 +659,7 @@
         border: 1px solid ${mainTheme.aiCardBorder || (isLight ? 'rgba(15, 23, 42, 0.12)' : 'rgba(255, 255, 255, 0.1)')} !important;
         border-radius: 14px !important;
         padding: 12px 16px !important;
-        box-shadow: ${isLight ? '0 4px 14px rgba(15, 23, 42, 0.08)' : '0 4px 14px rgba(0, 0, 0, 0.28)'} !important;
+        box-shadow: none !important;
         box-sizing: border-box !important;
         overflow: hidden !important;
       }
@@ -909,7 +914,7 @@
       .agy-user-bubble-frame {
         background: ${bubbleTheme.frameBg} !important;
         border-radius: ${bubbleTheme.isScroll ? '6px' : '14px'} !important;
-        box-shadow: 0 4px 18px rgba(0, 0, 0, 0.45), 0 0 12px ${bubbleTheme.glow} !important;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.28) !important;
         position: relative !important;
         overflow: visible !important;
         padding: 1.2px !important;
