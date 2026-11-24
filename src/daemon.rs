@@ -476,8 +476,11 @@ pub fn run(opts: DaemonOptions) -> Result<()> {
             }
         }
 
-        // Adaptive scan cadence: 1.5s when Antigravity is reachable, 2.5s when idle/closed.
-        let scan_interval = if last_port.is_some() {
+        // Adaptive scan cadence: 3s once already attached to active pages, 1.5s while discovering, 2.5s when closed.
+        let has_sessions = !sessions.lock().unwrap().is_empty();
+        let scan_interval = if has_sessions {
+            Duration::from_millis(3000)
+        } else if last_port.is_some() {
             Duration::from_millis(1500)
         } else {
             Duration::from_millis(2500)

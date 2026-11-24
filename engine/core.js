@@ -192,16 +192,43 @@
     }
   }
 
+  function flushMetricsStyle() {
+    const ms = window.__AGY_METRICS_STATE__ || (window.__AGY_METRICS_STATE__ = {
+      glassBg: '',
+      beforeClip: '',
+      holeClip: ''
+    });
+    let css = '';
+    if (ms.glassBg || ms.beforeClip) {
+      css += '.agy-shell::before{';
+      if (ms.glassBg) css += `background-image:${ms.glassBg}!important;`;
+      if (ms.beforeClip) css += `clip-path:${ms.beforeClip}!important;`;
+      css += '}';
+    }
+    if (ms.holeClip) {
+      css += `body[data-has-browser-hole="true"] .agy-shell[data-agy-hole-active="1"]::after{clip-path:${ms.holeClip}!important;}`;
+    }
+    if (css === window.__AGY_LAST_METRICS_CSS__) return;
+    window.__AGY_LAST_METRICS_CSS__ = css;
+    let el = document.getElementById('antigravity-custom-theme-metrics');
+    if (!el) {
+      el = document.createElement('style');
+      el.id = 'antigravity-custom-theme-metrics';
+      document.head.appendChild(el);
+    }
+    el.textContent = css;
+  }
+
   // Pre-bake L-shaped header/sidebar glass blur (debounced + LRU-capped + blob: URL) to avoid per-frame GPU backdrop readback
   function syncPrebakedGlass(wpUrl, overlayRgb, overlayAlpha, tintBg, blurStr, deferMs = 0) {
     if (window.__AGY_BLUR_TIMER__) {
       clearTimeout(window.__AGY_BLUR_TIMER__);
       window.__AGY_BLUR_TIMER__ = 0;
     }
-    const shell = document.querySelector('.agy-shell');
+    const ms = window.__AGY_METRICS_STATE__ || (window.__AGY_METRICS_STATE__ = { glassBg: '', beforeClip: '', holeClip: '' });
     if (!wpUrl) {
-      window.__AGY_LAST_GLASS_BG__ = '';
-      if (shell) shell.style.removeProperty('--agy-l-glass-bg');
+      ms.glassBg = '';
+      flushMetricsStyle();
       return;
     }
     const key = `${wpUrl.slice(0, 64)}|${wpUrl.length}|${overlayRgb}|${overlayAlpha.toFixed(3)}|${tintBg}|${blurStr}`;
@@ -211,9 +238,8 @@
     const cached = cache.get(key);
     if (cached) {
       putBlurCache(key, cached);
-      const cssVal = 'url("' + cached + '")';
-      window.__AGY_LAST_GLASS_BG__ = cssVal;
-      if (shell) shell.style.setProperty('--agy-l-glass-bg', cssVal);
+      ms.glassBg = 'url("' + cached + '")';
+      flushMetricsStyle();
       return;
     }
 
@@ -252,10 +278,9 @@
               return;
             }
             putBlurCache(key, bakedUrl);
-            const cssVal = 'url("' + bakedUrl + '")';
-            window.__AGY_LAST_GLASS_BG__ = cssVal;
-            const curShell = document.querySelector('.agy-shell');
-            if (curShell) curShell.style.setProperty('--agy-l-glass-bg', cssVal);
+            const curMs = window.__AGY_METRICS_STATE__ || (window.__AGY_METRICS_STATE__ = { glassBg: '', beforeClip: '', holeClip: '' });
+            curMs.glassBg = 'url("' + bakedUrl + '")';
+            flushMetricsStyle();
           };
           if (typeof canvas.toBlob === 'function' && typeof URL.createObjectURL === 'function') {
             canvas.toBlob((blob) => {
@@ -750,25 +775,6 @@
 
     const sidePanelCss = st.wpEnabled ? `
       /* Frosted pre-baked glass + dark/light reading scrim for right-side Artifact / Text / Diff split panels */
-      ${useUnifiedGlass ? `
-      .agy-shell[data-agy-side-glass="1"]::before {
-        clip-path: polygon(
-          evenodd,
-          0 0,
-          100% 0,
-          100% var(--agy-hdr-h, 75px),
-          var(--agy-sidebar-w, 256px) var(--agy-hdr-h, 75px),
-          var(--agy-sidebar-w, 256px) 100%,
-          0 100%,
-          0 0,
-          var(--agy-side-l, 100%) var(--agy-side-t, 75px),
-          var(--agy-side-r, 100%) var(--agy-side-t, 75px),
-          var(--agy-side-r, 100%) var(--agy-side-b, 100%),
-          var(--agy-side-l, 100%) var(--agy-side-b, 100%),
-          var(--agy-side-l, 100%) var(--agy-side-t, 75px)
-        ) !important;
-      }
-      ` : ''}
       body:not([data-has-browser-hole="true"]) .agy-shell [data-side-panel-body="true"]:not([data-has-browser-hole="true"]) {
         background: ${mainTheme.aiCardBg || `rgba(${overlayRgb}, 0.72)`} !important;
         ${isLight ? `color: ${uiInk} !important;` : ''}
@@ -808,20 +814,13 @@
         z-index: 1;
         pointer-events: none;
         background-color: ${mainTheme.headerBg};
-        background-image: var(--agy-l-glass-bg, none);
+        background-image: none;
         background-size: cover;
         background-position: ${bgPosition};
         background-repeat: no-repeat;
         backdrop-filter: none !important;
         will-change: transform;
-        clip-path: polygon(
-          0 0,
-          100% 0,
-          100% var(--agy-hdr-h, 75px),
-          var(--agy-sidebar-w, 256px) var(--agy-hdr-h, 75px),
-          var(--agy-sidebar-w, 256px) 100%,
-          0 100%
-        );
+        clip-path: polygon(0 0, 100% 0, 100% 75px, 256px 75px, 256px 100%, 0 100%);
       }
       .agy-shell [class*="@container/titlebar"] {
         background: transparent !important;
@@ -1109,6 +1108,10 @@
     }
     const styleEl = document.getElementById('antigravity-custom-theme-active');
     if (styleEl) styleEl.remove();
+    const metricsEl = document.getElementById('antigravity-custom-theme-metrics');
+    if (metricsEl) metricsEl.remove();
+    window.__AGY_LAST_METRICS_CSS__ = '';
+    window.__AGY_METRICS_STATE__ = { glassBg: '', beforeClip: '', holeClip: '' };
     const navBtn = document.getElementById('agy-custom-theme-sidebar-btn');
     if (navBtn) navBtn.remove();
     const settingsBtn = document.getElementById('agy-custom-theme-settings-btn');
@@ -1117,9 +1120,9 @@
     if (modal) modal.remove();
     const shell = document.querySelector('.agy-shell');
     if (shell) {
-      delete shell.dataset.agyHoleActive;
-      shell.style.removeProperty('--agy-hole-clip');
-      shell.style.removeProperty('--agy-l-glass-bg');
+      if (shell.dataset.agyHoleActive) delete shell.dataset.agyHoleActive;
+      if (shell.dataset.agySideGlass) delete shell.dataset.agySideGlass;
+      ['--agy-hole-clip', '--agy-l-glass-bg', '--agy-sidebar-w', '--agy-hdr-h', '--agy-side-l', '--agy-side-t', '--agy-side-r', '--agy-side-b'].forEach((p) => shell.style.removeProperty(p));
     }
     if (window.electronNative && typeof window.electronNative.setTitleBarOverlay === 'function') {
       try {
@@ -1785,14 +1788,20 @@
   function syncShellMetrics() {
     const shell = document.querySelector('.agy-shell');
     if (!shell) return;
+    const ms = window.__AGY_METRICS_STATE__ || (window.__AGY_METRICS_STATE__ = {
+      glassBg: '',
+      beforeClip: '',
+      holeClip: ''
+    });
+
     const split = shell.querySelector('[data-testid="sidebar-split"]');
     const sidebarPane = split ? split.firstElementChild : null;
     const titleBar = shell.querySelector('[class*="@container/titlebar"]');
     const sw = sidebarPane ? Math.round(sidebarPane.getBoundingClientRect().width) : 0;
     const shellRect = shell.getBoundingClientRect();
     const hdrBottom = titleBar ? Math.round(titleBar.getBoundingClientRect().bottom - shellRect.top) : 35;
-    shell.style.setProperty('--agy-sidebar-w', sw + 'px');
-    shell.style.setProperty('--agy-hdr-h', hdrBottom + 'px');
+
+    const baseLClip = `polygon(0 0, 100% 0, 100% ${hdrBottom}px, ${sw}px ${hdrBottom}px, ${sw}px 100%, 0 100%)`;
 
     const hasHoleAttr = document.body.getAttribute('data-has-browser-hole') === 'true';
     const holeEl = hasHoleAttr ? shell.querySelector('[data-browser-hole]:not([data-browser-hole="false"])') : null;
@@ -1807,18 +1816,20 @@
         const t = Math.max(0, Math.round(hRect.top - shellRect.top));
         const r = Math.max(l, Math.round(hRect.right - shellRect.left));
         const b = Math.max(t, Math.round(hRect.bottom - shellRect.top));
-        shell.style.setProperty(
-          '--agy-hole-clip',
-          `polygon(evenodd, 0 0, 100% 0, 100% 100%, 0 100%, 0 0, ${l}px ${t}px, ${r}px ${t}px, ${r}px ${b}px, ${l}px ${b}px, ${l}px ${t}px)`
-        );
-        shell.dataset.agyHoleActive = '1';
-        delete shell.dataset.agySideGlass;
+        ms.beforeClip = baseLClip;
+        ms.holeClip = `polygon(evenodd, 0 0, 100% 0, 100% 100%, 0 100%, 0 0, ${l}px ${t}px, ${r}px ${t}px, ${r}px ${b}px, ${l}px ${b}px, ${l}px ${t}px)`;
+        if (shell.dataset.agyHoleActive !== '1') {
+          shell.dataset.agyHoleActive = '1';
+        }
+        flushMetricsStyle();
         return;
       }
     }
     window.__AGY_HOLE_EL__ = null;
-    delete shell.dataset.agyHoleActive;
-    shell.style.removeProperty('--agy-hole-clip');
+    if (shell.dataset.agyHoleActive) {
+      delete shell.dataset.agyHoleActive;
+    }
+    ms.holeClip = '';
 
     const sideBody = shell.querySelector('[data-side-panel-body="true"]');
     if (sideBody) {
@@ -1834,16 +1845,24 @@
         const sr = Math.min(Math.round(shellRect.width), Math.max(sl, Math.round(sRect.right - shellRect.left)));
         const sb = Math.min(Math.round(shellRect.height), Math.max(st, Math.round(sRect.bottom - shellRect.top)));
         if (sr - sl > 20 && sb - st > 20) {
-          shell.style.setProperty('--agy-side-l', sl + 'px');
-          shell.style.setProperty('--agy-side-t', st + 'px');
-          shell.style.setProperty('--agy-side-r', sr + 'px');
-          shell.style.setProperty('--agy-side-b', sb + 'px');
-          shell.dataset.agySideGlass = '1';
+          ms.beforeClip = `polygon(evenodd, 0 0, 100% 0, 100% ${hdrBottom}px, ${sw}px ${hdrBottom}px, ${sw}px 100%, 0 100%, 0 0, ${sl}px ${st}px, ${sr}px ${st}px, ${sr}px ${sb}px, ${sl}px ${sb}px, ${sl}px ${st}px)`;
+          flushMetricsStyle();
           return;
         }
       }
+    } else {
+      window.__AGY_SIDE_EL__ = null;
     }
-    delete shell.dataset.agySideGlass;
+    ms.beforeClip = baseLClip;
+    flushMetricsStyle();
+  }
+
+  function scheduleMetricsSync() {
+    if (window.__AGY_METRICS_RAF__) return;
+    window.__AGY_METRICS_RAF__ = requestAnimationFrame(() => {
+      window.__AGY_METRICS_RAF__ = 0;
+      syncShellMetrics();
+    });
   }
 
   function hookShellMetrics(forceSync = false) {
@@ -1852,14 +1871,17 @@
     let needsSync = forceSync;
     if (!shell.dataset.agyTboMounted) {
       shell.dataset.agyTboMounted = '1';
-      if (window.__AGY_LAST_GLASS_BG__) {
-        shell.style.setProperty('--agy-l-glass-bg', window.__AGY_LAST_GLASS_BG__);
-      }
+      // Strip any legacy inline CSS vars left by older versions so .agy-shell never inherits bloat.
+      if (shell.dataset.agySideGlass) delete shell.dataset.agySideGlass;
+      ['--agy-hole-clip', '--agy-l-glass-bg', '--agy-sidebar-w', '--agy-hdr-h', '--agy-side-l', '--agy-side-t', '--agy-side-r', '--agy-side-b'].forEach((p) => {
+        if (shell.style.getPropertyValue(p)) shell.style.removeProperty(p);
+      });
+      flushMetricsStyle();
       scheduleTitleBarSync();
       needsSync = true;
     }
     if (!window.__AGY_SHELL_RO__ && typeof ResizeObserver !== 'undefined') {
-      const ro = new ResizeObserver(syncShellMetrics);
+      const ro = new ResizeObserver(scheduleMetricsSync);
       ro.observe(shell);
       const sidebarPane = shell.querySelector('[data-testid="sidebar-split"]')?.firstElementChild;
       if (sidebarPane) ro.observe(sidebarPane);
@@ -1942,6 +1964,11 @@
     cancelAnimationFrame(window.__AGY_TICK_RAF__);
     window.__AGY_TICK_RAF__ = 0;
   }
+  if (window.__AGY_METRICS_RAF__) {
+    cancelAnimationFrame(window.__AGY_METRICS_RAF__);
+    window.__AGY_METRICS_RAF__ = 0;
+  }
+  window.__AGY_LAST_METRICS_CSS__ = '';
   if (window.__AGY_SHELL_RO__) {
     try { window.__AGY_SHELL_RO__.disconnect(); } catch (e) {}
     window.__AGY_SHELL_RO__ = null;
