@@ -178,10 +178,15 @@ pub fn filter_antigravity_pages(targets: Vec<CdpTarget>) -> Vec<CdpTarget> {
             if t.target_type != "page" || t.web_socket_debugger_url.is_empty() {
                 return false;
             }
-            if t.url.starts_with("devtools://") || t.url.starts_with("chrome-extension://") {
+            if t.url.starts_with("devtools://")
+                || t.url.starts_with("chrome-extension://")
+                || t.url.starts_with("data:")
+            {
                 return false;
             }
-            t.url.contains("127.0.0.1")
+            // Antigravity's Electron UI runs on https://127.0.0.1:<port>/... (or workbench/launchpad).
+            // Never attach to user dev servers (e.g. http://127.0.0.1:3000/) inside the split browser!
+            t.url.starts_with("https://127.0.0.1:")
                 || t.url.contains("workbench")
                 || t.url.contains("launchpad")
         })

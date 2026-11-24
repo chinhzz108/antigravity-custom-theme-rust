@@ -196,10 +196,25 @@ fn test_filter_antigravity_pages() {
             url: "http://127.0.0.1:12345/sw.js".into(),
             web_socket_debugger_url: "ws://127.0.0.1:9222/devtools/sw/3".into(),
         },
+        CdpTarget {
+            id: "4".into(),
+            target_type: "page".into(),
+            title: "User Local Dev Server".into(),
+            url: "http://127.0.0.1:3000/".into(),
+            web_socket_debugger_url: "ws://127.0.0.1:9222/devtools/page/4".into(),
+        },
+        CdpTarget {
+            id: "5".into(),
+            target_type: "page".into(),
+            title: "Antigravity Manager".into(),
+            url: "https://127.0.0.1:61534/c/abc".into(),
+            web_socket_debugger_url: "ws://127.0.0.1:9222/devtools/page/5".into(),
+        },
     ];
     let filtered = filter_antigravity_pages(targets);
-    assert_eq!(filtered.len(), 1);
+    assert_eq!(filtered.len(), 2);
     assert_eq!(filtered[0].id, "1");
+    assert_eq!(filtered[1].id, "5");
 }
 
 #[test]

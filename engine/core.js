@@ -1,4 +1,9 @@
 (() => {
+  // Never run inside user web apps opened in Antigravity's split embedded browser
+  if (!window.electronNative && !document.querySelector('.agy-shell')) {
+    return 'Skipped non-Antigravity page';
+  }
+
   const THEMES = /*__THEMES_PLACEHOLDER__*/{};
   const THEME_KEYS = Object.keys(THEMES);
   const DEFAULT_THEME_KEY = THEME_KEYS[0] || 'Default';
