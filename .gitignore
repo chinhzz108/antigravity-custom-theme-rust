@@ -1,0 +1,14 @@
+# Rust build artifacts
+/target/
+
+# Runtime & compiled outputs
+dist/
+daemon.log
+daemon.pid
+theme_config.json
+theme_config.json.tmp
+silent-start.vbs
+
+# OS junk
+.DS_Store
+Thumbs.db

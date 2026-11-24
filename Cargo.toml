@@ -1,0 +1,49 @@
+[package]
+name = "agy-theme"
+version = "1.0.0"
+edition = "2021"
+description = "Ultra-fast, ultra-low-RAM Rust CDP custom theme engine & daemon for Antigravity"
+license = "MIT"
+
+[lib]
+name = "agy_theme"
+path = "src/lib.rs"
+
+[[bin]]
+name = "agy-theme"
+path = "src/main.rs"
+
+[[bin]]
+name = "agy-theme-daemon"
+path = "src/bin/daemon.rs"
+
+[dependencies]
+base64 = "0.22"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp", "gif", "bmp"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = [
+    "Win32_Foundation",
+    "Win32_System_Console",
+    "Win32_System_Memory",
+    "Win32_System_ProcessStatus",
+    "Win32_System_Threading",
+] }
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
+
+[profile.release.package.image]
+opt-level = 3
+
+[profile.release.package.image-webp]
+opt-level = 3
+
+[profile.release.package.zune-jpeg]
+opt-level = 3
