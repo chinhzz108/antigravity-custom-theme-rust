@@ -126,8 +126,8 @@ fn test_build_payload_preserves_order_and_inlines_assets() {
     })
     .expect("build_payload should succeed");
 
-    assert_eq!(report.theme_names.first().map(String::as_str), Some("WLOP Cosmic"));
-    assert!(report.theme_names.len() >= 5);
+    assert_eq!(report.theme_names.first().map(String::as_str), Some("Itachi Blood Moon"));
+    assert!(report.theme_names.len() >= 8);
 
     let compiled = fs::read_to_string(&out_path).expect("compiled payload readable");
     assert!(!compiled.contains("/*__THEMES_PLACEHOLDER__*/{}"));
@@ -142,7 +142,7 @@ fn test_build_payload_preserves_order_and_inlines_assets() {
 fn test_list_themes_reports_all_presets() {
     let themes = list_themes(&repo_root().join("themes").join("themes.json"))
         .expect("list_themes should succeed");
-    assert_eq!(themes[0].name, "WLOP Cosmic");
+    assert_eq!(themes[0].name, "Itachi Blood Moon");
     assert!(themes[0].has_wallpaper);
     assert!(themes.iter().any(|t| t.name == "Kyoto Matcha Light" && t.is_light));
 }
@@ -156,14 +156,14 @@ fn test_config_atomic_merge_roundtrip() {
     let _ = fs::remove_file(&cfg_path);
 
     let mut first = Map::new();
-    first.insert("themeName".into(), json!("WLOP Cosmic"));
+    first.insert("themeName".into(), json!("Itachi Blood Moon"));
     first.insert("dimming".into(), json!(55));
     save_config_merge(&cfg_path, &first).expect("save first");
 
     let mut second = Map::new();
     second.insert("glassBlur".into(), json!(6));
     let merged = save_config_merge(&cfg_path, &second).expect("save merge");
-    assert_eq!(merged.get("themeName"), Some(&json!("WLOP Cosmic")));
+    assert_eq!(merged.get("themeName"), Some(&json!("Itachi Blood Moon")));
     assert_eq!(merged.get("dimming"), Some(&json!(55)));
     assert_eq!(merged.get("glassBlur"), Some(&json!(6)));
 

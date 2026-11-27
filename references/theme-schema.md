@@ -1,6 +1,6 @@
 # `themes/themes.json` Schema & Antigravity DOM Reference
 
-`themes/themes.json` is a JSON object keyed by display preset name (e.g. `"WLOP Cosmic"`, `"Midnight Obsidian"`). Key order is preserved by the Rust compiler (`serde_json` `preserve_order`); the first entry becomes the default fallback theme when no `theme_config.json` selection is stored.
+`themes/themes.json` is a JSON object keyed by display preset name (e.g. `"Itachi Blood Moon"`, `"Midnight Obsidian"`). Key order is preserved by the Rust compiler (`serde_json` `preserve_order`); the first entry becomes the default fallback theme when no `theme_config.json` selection is stored.
 
 ## Preset Fields
 

@@ -1256,11 +1256,14 @@
       window.__AGY_ROTATE_TIMER__ = 0;
     }
     window.__AGY_ROTATE_DUE__ = false;
+    window.__AGY_ROTATE_NEXT_AT__ = 0;
     const st = stOverride || getState();
     const mins = Number(st.autoRotateMin) || 0;
     if (!st.autoRotate || mins <= 0 || !st.wpEnabled || getWallpaperPool().length < 2) {
       return;
     }
+    const delayMs = mins * 60000;
+    window.__AGY_ROTATE_NEXT_AT__ = Date.now() + delayMs;
     window.__AGY_ROTATE_TIMER__ = setTimeout(() => {
       window.__AGY_ROTATE_TIMER__ = 0;
       if (document.hidden) {
@@ -1268,7 +1271,15 @@
         return;
       }
       rotateToNextWallpaper(false);
-    }, mins * 60000);
+    }, delayMs);
+  }
+
+  function checkAutoRotateDue() {
+    if (document.hidden || window.__AGY_ROTATE_INFLIGHT__) return;
+    if (window.__AGY_ROTATE_DUE__ || (window.__AGY_ROTATE_NEXT_AT__ && Date.now() >= window.__AGY_ROTATE_NEXT_AT__)) {
+      window.__AGY_ROTATE_DUE__ = false;
+      rotateToNextWallpaper(false);
+    }
   }
 
   function syncTitleBarOverlay(stOverride, force = false) {
@@ -1507,7 +1518,7 @@
             </div>
           </div>
           <div id="agy-import-box" style="display: none; flex-direction: column; gap: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.08);">
-            <textarea id="agy-import-text" rows="3" placeholder='Paste exported theme config JSON here (e.g. {"themeName":"WLOP Cosmic","dimming":45,...})' style="width: 100%; box-sizing: border-box; background: rgba(0,0,0,0.35); color: #f4f4f5; border: 1px solid ${mainTheme.borderColor}; border-radius: 8px; padding: 8px 10px; font-family: monospace; font-size: 12px; resize: vertical;"></textarea>
+            <textarea id="agy-import-text" rows="3" placeholder='Paste exported theme config JSON here (e.g. {"themeName":"Itachi Blood Moon","dimming":45,...})' style="width: 100%; box-sizing: border-box; background: rgba(0,0,0,0.35); color: #f4f4f5; border: 1px solid ${mainTheme.borderColor}; border-radius: 8px; padding: 8px 10px; font-family: monospace; font-size: 12px; resize: vertical;"></textarea>
             <div style="display: flex; justify-content: flex-end; align-items: center; gap: 8px;">
               <span id="agy-import-msg" style="font-size: 12px; color: #fca5a5;"></span>
               <button id="agy-import-apply" type="button" style="padding: 5px 12px; border-radius: 7px; background: ${mainTheme.primary}; color: #090d16; font-weight: 600; font-size: 12px; border: none; cursor: pointer;">Apply JSON</button>
@@ -2644,7 +2655,7 @@
         <path d="M19.5 3.5 L20.2 5.2 L21.9 5.9 L20.2 6.6 L19.5 8.3 L18.8 6.6 L17.1 5.9 L18.8 5.2 Z" fill="${secondary || '#ffffff'}" opacity="0.95"/>
       </svg>`;
     }
-    // Celestial 4-point starlight emblem (WLOP Cosmic & pure-CSS presets)
+    // Celestial 4-point starlight emblem (Pure-CSS presets)
     return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" style="flex-shrink:0;">
       <path d="M12 1.8 L14.5 9.5 L22.2 12 L14.5 14.5 L12 22.2 L9.5 14.5 L1.8 12 L9.5 9.5 Z" fill="${primary}" opacity="0.96"/>
       <path d="M12 5.2 L13.4 10.6 L18.8 12 L13.4 13.4 L12 18.8 L10.6 13.4 L5.2 12 L10.6 10.6 Z" fill="#ffffff" opacity="0.82"/>
@@ -2844,7 +2855,7 @@
           </div>
           <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px;font-size:10px;color:${mutedCol};padding-left:2px;">
             <span>Theme: <strong style="color:${mainTheme.primary};font-weight:650;">${st.themeName}</strong></span>
-            <span>${st.autoRotate && st.autoRotateMin > 0 ? `Auto ${st.autoRotateMin}m` : 'Static'}</span>
+            <span>${st.autoRotate && st.autoRotateMin > 0 ? `Auto ${st.autoRotateMin}m${window.__AGY_ROTATE_NEXT_AT__ ? ' · ' + Math.max(1, Math.ceil((window.__AGY_ROTATE_NEXT_AT__ - Date.now()) / 60000)) + 'p' : ''}` : 'Static'}</span>
           </div>
           <div style="height:1px;margin-top:6px;background:linear-gradient(90deg, ${mainTheme.borderColor} 0%, transparent 100%);"></div>
           ${gaugesHtml}
@@ -3191,14 +3202,14 @@
   }
   window.__AGY_SCROLL_AC__ = new AbortController();
   window.addEventListener('load', () => scheduleTitleBarSync(), { signal: window.__AGY_SCROLL_AC__.signal });
-  window.addEventListener('focus', () => syncTitleBarOverlay(), { signal: window.__AGY_SCROLL_AC__.signal });
+  window.addEventListener('focus', () => {
+    syncTitleBarOverlay();
+    checkAutoRotateDue();
+  }, { signal: window.__AGY_SCROLL_AC__.signal });
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden) {
       syncTitleBarOverlay();
-      if (window.__AGY_ROTATE_DUE__) {
-        window.__AGY_ROTATE_DUE__ = false;
-        rotateToNextWallpaper(false);
-      }
+      checkAutoRotateDue();
     }
   }, { signal: window.__AGY_SCROLL_AC__.signal });
   document.querySelectorAll('[data-agy-scroll-bound]').forEach(el => delete el.dataset.agyScrollBound);
@@ -3219,11 +3230,13 @@
   if (staleQuotaHide) staleQuotaHide.remove();
   window.__AGY_QUOTA_SYNCING__ = false;
 
-  // Lightweight 30s tick solely for live countdown display (0% CPU, zero DOM reflow on .agy-shell)
+  // Lightweight 30s tick for live countdown display + wall-clock auto-rotate safety check (0% CPU)
   window.__AGY_QUOTA_TIMER__ = setInterval(() => {
-    if (!document.hidden && readQuotaCache()) {
+    if (document.hidden) return;
+    if (readQuotaCache()) {
       refreshQuotaWidgets();
     }
+    checkAutoRotateDue();
   }, 30000);
 
   // Start zero-lag auto-rotate wallpaper timer (default 5 min, off-thread decode + idle-frame swap)

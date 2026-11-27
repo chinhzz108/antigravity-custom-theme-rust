@@ -25,25 +25,24 @@ Ngoài việc viết lại toàn bộ backend/CLI/daemon bằng Rust, `engine/co
 - **Tự động nén ảnh nền custom upload (max 2560px WebP)**: Không còn làm tràn `localStorage` hay phình to `theme_config.json` khi upload ảnh PNG 4K.
 - **Cắt reflow layout khi AI đang stream**: `MutationObserver` chỉ tính lại `getBoundingClientRect()` khi kích thước đổi (`ResizeObserver`) hoặc trạng thái browser hole/side panel thay đổi, không ép layout reflow 60 lần/giây khi AI stream chữ.
 - **Chống rò rỉ DOM listener**: Gắn listener `keydown` của modal với `AbortController.signal` để dọn sạch hoàn toàn khi hot-reload hoặc uninstall.
-- **Gemini Quota HUD biến hình theo từng nhân vật Anime**: Tự động đồng bộ biểu tượng, họa tiết nền, màu thanh năng lượng & nhãn theo từng ảnh nền đang hiển thị — **Itachi** (Mangekyou Sharingan + trăng máu & lông quạ + `5-HOUR CHAKRA` / `1-WEEK MANGEKYOU`), **Kakashi** (tia sét Chidori / Kamui + `5-HOUR CHIDORI` / `1-WEEK KAMUI`), **WLOP Cosmic** (ngôi sao 4 cánh & chòm sao + `5-HOUR ENERGY` / `1-WEEK STARLIGHT`), kèm nút **⏭ Đổi nhanh** và **↻ Sync 1-click** thuần UI/DOM (0 live blur, 0 chọc API nội bộ).
-- **Tự đổi trọn bộ ảnh 2K + giao diện & Quota HUD mỗi 5 phút không lag (`Auto 5m`)**: Pre-decode ảnh kế tiếp trên luồng phụ (`Image.decode()`), bỏ hoàn toàn forced layout reflow (đổi trọn bộ theme + Quota HUD chỉ **`1.5–2.5 ms`** trên idle frame `requestIdleCallback`), cache 10 mục pre-baked L-glass (`< 200 KB`), tự tạm dừng khi ẩn cửa sổ (**0% CPU nền**), chỉnh chu kỳ (`Off / 2m / 5m / 10m / 15m / 30m`) hoặc bấm `⏭` ngay trên card Quota hoặc Custom Theme Studio.
+- **Gemini Quota HUD biến hình theo từng nhân vật Anime**: Tự động đồng bộ biểu tượng, họa tiết nền, màu thanh năng lượng & nhãn theo từng ảnh nền đang hiển thị — **Itachi** (Mangekyou Sharingan + trăng máu & lông quạ + `5-HOUR CHAKRA` / `1-WEEK MANGEKYOU`), **Kakashi** (tia sét Chidori / Kamui + `5-HOUR CHIDORI` / `1-WEEK KAMUI`), và các preset Pure-CSS (ngôi sao 4 cánh & chòm sao), kèm nút **⏭ Đổi nhanh** và **↻ Sync 1-click** thuần UI/DOM (0 live blur, 0 chọc API nội bộ).
+- **Tự đổi trọn bộ ảnh 2K + giao diện & Quota HUD mỗi 5 phút không lag (`Auto 5m`)**: Xoay vòng trọn bộ **8 ảnh 2K Itachi & Kakashi**, pre-decode trên luồng phụ (`Image.decode()`), bỏ hoàn toàn forced layout reflow (chỉ **`1.5–2.5 ms`** trên idle frame `requestIdleCallback`), có mốc wall-clock dự phòng chống throttle khi chuyển cửa sổ/sleep, cache 10 mục pre-baked L-glass (`< 200 KB`), tự tạm dừng khi ẩn cửa sổ (**0% CPU nền**), chỉnh chu kỳ (`Off / 2m / 5m / 10m / 15m / 30m`) hoặc bấm `⏭` ngay trên card Quota.
 - **Compact Sidebar (`Compact Sidebar`)**: Ẩn gọn 3 mục `Automations`, `Customizations` và `Custom theme` khỏi đỉnh sidebar để danh sách Project rộng hơn (+110px); chuyển nút mở **Custom Theme Studio (`✨`)** lên thanh Titlebar cạnh Gemini Quota (vẫn bật lại bất cứ lúc nào trong Custom Theme Studio hoặc mở qua `Settings → Appearance`).
 
-## Preset đi kèm sẵn (`themes/themes.json` — 13 Presets)
+## Preset đi kèm sẵn (`themes/themes.json` — 12 Presets)
 
-1. **`WLOP Cosmic`** *(mặc định)* — Hình nền 2K starlight + SVG flourish + Unified L-Glass
-2. **`Itachi Blood Moon`** — Ảnh 2K Itachi ANBU trước trăng máu bốc lửa + Sharingan ornament
-3. **`Itachi Night Sharingan`** — Ảnh 2K Itachi góc nghiêng đêm mưa + mắt Sharingan đỏ rực
-4. **`Itachi Mangekyou Crows`** — Ảnh 2K cận cảnh Mangekyou Sharingan & lông quạ ánh trăng
-5. **`Itachi Crimson Art`** — Ảnh 2K tranh sơn dầu đỏ rực Itachi Uchiha phong cách painterly
-6. **`Kakashi ANBU Frost`** — Ảnh 2K Kakashi ANBU nhấc mặt nạ cáo, mắt xanh băng & Sharingan đỏ
-7. **`Kakashi Kamui Sharingan`** — Ảnh 2K Kakashi kéo băng trán cùng nền Mangekyou Kamui đỏ
-8. **`Kakashi Konoha Sunset`** — Ảnh 2K Kakashi & Team 7 trên mái ngói làng Lá chiều hoàng hôn (Top #1 Wallhaven)
-9. **`Kakashi Team Minato`** — Ảnh 2K Kakashi trẻ cùng Team Minato phố đèn lồng làng Lá lúc chạng vạng (Top #2 Wallhaven)
-10. **`Midnight Obsidian`** — Pure-CSS gradient tím/xanh siêu nhẹ (0 ảnh)
-11. **`Cyber Neon Pulse`** — Pure-CSS cyberpunk cyan/magenta phát sáng (0 ảnh)
-12. **`Ember Crimson`** — Pure-CSS obsidian ấm + cam/đỏ hổ phách (0 ảnh)
-13. **`Kyoto Matcha Light`** — Chế độ **Light Glass (`isLight: true`)** ban ngày chữ đậm dễ đọc (0 ảnh)
+1. **`Itachi Blood Moon`** *(mặc định)* — Ảnh 2K Itachi ANBU trước trăng máu bốc lửa + Sharingan ornament
+2. **`Itachi Night Sharingan`** — Ảnh 2K Itachi góc nghiêng đêm mưa + mắt Sharingan đỏ rực
+3. **`Itachi Mangekyou Crows`** — Ảnh 2K cận cảnh Mangekyou Sharingan & lông quạ ánh trăng
+4. **`Itachi Crimson Art`** — Ảnh 2K tranh sơn dầu đỏ rực Itachi Uchiha phong cách painterly
+5. **`Kakashi ANBU Frost`** — Ảnh 2K Kakashi ANBU nhấc mặt nạ cáo, mắt xanh băng & Sharingan đỏ
+6. **`Kakashi Kamui Sharingan`** — Ảnh 2K Kakashi kéo băng trán cùng nền Mangekyou Kamui đỏ
+7. **`Kakashi Konoha Sunset`** — Ảnh 2K Kakashi & Team 7 trên mái ngói làng Lá chiều hoàng hôn (Top #1 Wallhaven)
+8. **`Kakashi Team Minato`** — Ảnh 2K Kakashi trẻ cùng Team Minato phố đèn lồng làng Lá lúc chạng vạng (Top #2 Wallhaven)
+9. **`Midnight Obsidian`** — Pure-CSS gradient tím/xanh siêu nhẹ (0 ảnh)
+10. **`Cyber Neon Pulse`** — Pure-CSS cyberpunk cyan/magenta phát sáng (0 ảnh)
+11. **`Ember Crimson`** — Pure-CSS obsidian ấm + cam/đỏ hổ phách (0 ảnh)
+12. **`Kyoto Matcha Light`** — Chế độ **Light Glass (`isLight: true`)** ban ngày chữ đậm dễ đọc (0 ảnh)
 
 ## Hướng dẫn cài đặt & sử dụng nhanh (Windows)
 
