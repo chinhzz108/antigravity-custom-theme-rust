@@ -19,8 +19,14 @@
   const STORAGE_GLASS_BLUR = 'agy_glass_blur_v3';
   const STORAGE_AVATAR_SIZE = 'agy_avatar_size_v3';
   const STORAGE_AVATAR_RADIUS = 'agy_avatar_radius_v3';
+  const STORAGE_QUOTA_SIDEBAR = 'agy_quota_sidebar_v1';
+  const STORAGE_QUOTA_TITLEBAR = 'agy_quota_titlebar_v1';
+  const STORAGE_QUOTA_CACHE = 'agy_quota_cache_v1';
+  const STORAGE_QUOTA_EXPANDED = 'agy_quota_expanded_v1';
 
   const CHECK_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+  const REFRESH_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg>`;
+  const BOLT_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>`;
 
   const INPUT_STYLES = {
     'sync': {
@@ -61,7 +67,13 @@
     const avatarSize = rawAvSize !== undefined && rawAvSize !== null && rawAvSize !== '' ? parseInt(rawAvSize, 10) : 32;
     const rawAvRad = localStorage.getItem(STORAGE_AVATAR_RADIUS) ?? init.avatarRadius;
     const avatarRadius = rawAvRad !== undefined && rawAvRad !== null && rawAvRad !== '' ? parseInt(rawAvRad, 10) : 50;
-    return { themeName, bubbleName, inputStyle, dimming, wpEnabled, customWp, userAvatar, agentAvatar, glassBlur, avatarSize, avatarRadius };
+    const showQuotaSidebar = localStorage.getItem(STORAGE_QUOTA_SIDEBAR) !== null
+      ? localStorage.getItem(STORAGE_QUOTA_SIDEBAR) !== 'false'
+      : (init.showQuotaSidebar !== undefined ? init.showQuotaSidebar : true);
+    const showQuotaTitlebar = localStorage.getItem(STORAGE_QUOTA_TITLEBAR) !== null
+      ? localStorage.getItem(STORAGE_QUOTA_TITLEBAR) !== 'false'
+      : (init.showQuotaTitlebar !== undefined ? init.showQuotaTitlebar : true);
+    return { themeName, bubbleName, inputStyle, dimming, wpEnabled, customWp, userAvatar, agentAvatar, glassBlur, avatarSize, avatarRadius, showQuotaSidebar, showQuotaTitlebar };
   }
 
   // Downscale user/agent avatar uploads to 192x192 WebP once so theme_config.json stays tiny
@@ -351,6 +363,12 @@
       }
       if (overrides.avatarRadius !== undefined) {
         localStorage.setItem(STORAGE_AVATAR_RADIUS, String(st.avatarRadius));
+      }
+      if (overrides.showQuotaSidebar !== undefined) {
+        localStorage.setItem(STORAGE_QUOTA_SIDEBAR, String(st.showQuotaSidebar));
+      }
+      if (overrides.showQuotaTitlebar !== undefined) {
+        localStorage.setItem(STORAGE_QUOTA_TITLEBAR, String(st.showQuotaTitlebar));
       }
     } catch (e) {}
 
@@ -1049,10 +1067,40 @@
       #agy-custom-theme-sidebar-btn svg {
         color: ${mainTheme.primary} !important;
       }
+      #agy-quota-sidebar-card {
+        background: ${isLight ? 'rgba(255, 255, 255, 0.72)' : (mainTheme.cardBg || 'rgba(12, 18, 34, 0.78)')};
+        border: 1px solid ${mainTheme.borderColor};
+        color: ${uiInk};
+      }
+      #agy-quota-titlebar-pill {
+        background: ${pillBg};
+        border: 1px solid ${pillBorder};
+        color: ${pillText};
+      }
+      #agy-quota-titlebar-pill:hover {
+        background: ${pillHoverBg};
+        border-color: ${mainTheme.borderColor};
+      }
+      #agy-quota-popover {
+        background: ${modalBg};
+        border: 1px solid ${mainTheme.borderColor};
+        box-shadow: 0 16px 40px rgba(0, 0, 0, ${isLight ? '0.20' : '0.72'});
+        color: #f4f4f5;
+      }
+      @keyframes agyQuotaSpin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+      }
+      .agy-quota-spinning {
+        animation: agyQuotaSpin 0.8s linear infinite;
+      }
     `;
 
     syncTitleBarOverlay(st);
     scheduleTitleBarSync(st);
+    if (typeof refreshQuotaWidgets === 'function') {
+      refreshQuotaWidgets();
+    }
   }
 
   function syncTitleBarOverlay(stOverride) {
@@ -1089,6 +1137,7 @@
     if (window.__AGY_SAVE_TIMER__) { clearTimeout(window.__AGY_SAVE_TIMER__); window.__AGY_SAVE_TIMER__ = 0; }
     if (window.__AGY_BLUR_TIMER__) { clearTimeout(window.__AGY_BLUR_TIMER__); window.__AGY_BLUR_TIMER__ = 0; }
     if (window.__AGY_TICK_TIMER__) { clearTimeout(window.__AGY_TICK_TIMER__); window.__AGY_TICK_TIMER__ = 0; }
+    if (window.__AGY_QUOTA_TIMER__) { clearInterval(window.__AGY_QUOTA_TIMER__); window.__AGY_QUOTA_TIMER__ = 0; }
     if (window.__AGY_BLUR_CACHE__ instanceof Map) {
       window.__AGY_BLUR_CACHE__.forEach((v) => {
         if (typeof v === 'string' && v.startsWith('blob:')) {
@@ -1128,6 +1177,14 @@
     if (settingsBtn) settingsBtn.remove();
     const modal = document.getElementById('agy-custom-theme-modal-backdrop');
     if (modal) modal.remove();
+    const quotaCard = document.getElementById('agy-quota-sidebar-card');
+    if (quotaCard) quotaCard.remove();
+    const quotaPill = document.getElementById('agy-quota-titlebar-pill');
+    if (quotaPill) quotaPill.remove();
+    const quotaPop = document.getElementById('agy-quota-popover');
+    if (quotaPop) quotaPop.remove();
+    const quotaHideStyle = document.getElementById('agy-quota-sync-hide-style');
+    if (quotaHideStyle) quotaHideStyle.remove();
     const shell = document.querySelector('.agy-shell');
     if (shell) {
       if (shell.dataset.agyHoleActive) delete shell.dataset.agyHoleActive;
@@ -1215,6 +1272,14 @@
               <label style="display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: #d4d4d8; cursor: pointer;">
                 <input id="agy-wp-toggle" type="checkbox" ${st.wpEnabled ? 'checked' : ''} style="accent-color: ${mainTheme.primary}; cursor: pointer;" />
                 Backdrop
+              </label>
+              <label style="display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: #d4d4d8; cursor: pointer;">
+                <input id="agy-quota-sb-toggle" type="checkbox" ${st.showQuotaSidebar ? 'checked' : ''} style="accent-color: ${mainTheme.primary}; cursor: pointer;" />
+                Sidebar Quota
+              </label>
+              <label style="display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: #d4d4d8; cursor: pointer;">
+                <input id="agy-quota-tb-toggle" type="checkbox" ${st.showQuotaTitlebar ? 'checked' : ''} style="accent-color: ${mainTheme.primary}; cursor: pointer;" />
+                Titlebar Quota
               </label>
               <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: #a1a1aa;">
                 Dim
@@ -1441,6 +1506,19 @@
       applyTheme({ wpEnabled: e.target.checked });
     });
 
+    const quotaSbToggle = container.querySelector('#agy-quota-sb-toggle');
+    if (quotaSbToggle) {
+      quotaSbToggle.addEventListener('change', (e) => {
+        applyTheme({ showQuotaSidebar: e.target.checked });
+      });
+    }
+    const quotaTbToggle = container.querySelector('#agy-quota-tb-toggle');
+    if (quotaTbToggle) {
+      quotaTbToggle.addEventListener('change', (e) => {
+        applyTheme({ showQuotaTitlebar: e.target.checked });
+      });
+    }
+
     const wpUpload = container.querySelector('#agy-wp-upload');
     wpUpload.addEventListener('change', (e) => {
       const file = e.target.files && e.target.files[0];
@@ -1579,7 +1657,7 @@
             throw new Error('Config must be a JSON object');
           }
           const allowed = {};
-          const keys = ['themeName', 'bubbleName', 'inputStyle', 'dimming', 'wpEnabled', 'customWp', 'userAvatar', 'agentAvatar', 'glassBlur', 'avatarSize', 'avatarRadius'];
+          const keys = ['themeName', 'bubbleName', 'inputStyle', 'dimming', 'wpEnabled', 'customWp', 'userAvatar', 'agentAvatar', 'glassBlur', 'avatarSize', 'avatarRadius', 'showQuotaSidebar', 'showQuotaTitlebar'];
           keys.forEach((k) => {
             if (parsed[k] !== undefined) allowed[k] = parsed[k];
           });
@@ -1604,6 +1682,8 @@
       localStorage.removeItem(STORAGE_INPUT);
       localStorage.removeItem(STORAGE_DIMMING);
       localStorage.removeItem(STORAGE_WP_ENABLED);
+      localStorage.removeItem(STORAGE_QUOTA_SIDEBAR);
+      localStorage.removeItem(STORAGE_QUOTA_TITLEBAR);
       applyTheme({
         themeName: DEFAULT_THEME_KEY,
         bubbleName: DEFAULT_THEME_KEY,
@@ -1615,7 +1695,9 @@
         agentAvatar: '',
         glassBlur: 3,
         avatarSize: 32,
-        avatarRadius: 50
+        avatarRadius: 50,
+        showQuotaSidebar: true,
+        showQuotaTitlebar: true
       });
       const defTh = THEMES[DEFAULT_THEME_KEY] || {};
       syncAvPreview(userAvPreview, defTh.userAvatar || '', 'U');
@@ -1631,6 +1713,8 @@
       if (avRadSlider) avRadSlider.value = 50;
       if (avRadVal) avRadVal.textContent = '50%';
       if (wpToggle) wpToggle.checked = true;
+      if (quotaSbToggle) quotaSbToggle.checked = true;
+      if (quotaTbToggle) quotaTbToggle.checked = true;
 
       container.querySelectorAll('.agy-preset-card').forEach(c => {
         const isSel = c.dataset.name === DEFAULT_THEME_KEY;
@@ -1917,14 +2001,706 @@
     }
   }
 
+  // ============================================================================
+  // Quota HUD (Pure UI/DOM — mirrors Antigravity's Settings -> Models & Usage)
+  // Zero undocumented API probing, zero token reading, zero live blur.
+  // ============================================================================
+
+  function readQuotaCache() {
+    try {
+      const raw = localStorage.getItem(STORAGE_QUOTA_CACHE);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (parsed && Array.isArray(parsed.groups) && parsed.groups.length > 0) {
+        return parsed;
+      }
+    } catch (e) {}
+    return null;
+  }
+
+  function saveQuotaCache(data) {
+    try {
+      localStorage.setItem(STORAGE_QUOTA_CACHE, JSON.stringify(data));
+    } catch (e) {}
+  }
+
+  function parseDurationMs(str) {
+    if (!str) return null;
+    const s = String(str).toLowerCase();
+    if (/less than\s+1\s+min|<\s*1\s*min/i.test(s)) return 30 * 1000;
+    let totalMs = 0;
+    let matched = false;
+    const patterns = [
+      [/(\d+)\s*d(?:ays?)?/g, 86400000],
+      [/(\d+)\s*h(?:ours?|rs?)?/g, 3600000],
+      [/(\d+)\s*m(?:in(?:ute)?s?)?/g, 60000],
+      [/(\d+)\s*s(?:ec(?:ond)?s?)?/g, 1000]
+    ];
+    for (const [re, mult] of patterns) {
+      let m;
+      while ((m = re.exec(s)) !== null) {
+        totalMs += parseInt(m[1], 10) * mult;
+        matched = true;
+      }
+    }
+    return matched && totalMs > 0 ? totalMs : null;
+  }
+
+  function formatCountdown(refreshAt) {
+    if (!refreshAt) return '';
+    const diff = refreshAt - Date.now();
+    if (diff <= 0) return 'Reset!';
+    const mins = Math.ceil(diff / 60000);
+    if (mins < 60) return `${mins}m`;
+    const hrs = Math.floor(mins / 60);
+    const remM = mins % 60;
+    if (hrs < 24) return remM > 0 ? `${hrs}h ${String(remM).padStart(2, '0')}m` : `${hrs}h`;
+    const days = Math.floor(hrs / 24);
+    const remH = hrs % 24;
+    return remH > 0 ? `${days}d ${remH}h` : `${days}d`;
+  }
+
+  function formatAge(syncedAt) {
+    if (!syncedAt) return '';
+    const diffSec = Math.max(0, Math.floor((Date.now() - syncedAt) / 1000));
+    if (diffSec < 45) return 'vừa xong';
+    const m = Math.floor(diffSec / 60);
+    if (m < 60) return `${m}p trước`;
+    const h = Math.floor(m / 60);
+    return `${h}h trước`;
+  }
+
+  function shortGroupMeta(fullLabel) {
+    const clean = String(fullLabel || '').trim();
+    if (/gemini/i.test(clean)) return { label: 'Gemini', tag: 'G' };
+    if (/claude|gpt/i.test(clean)) return { label: 'Claude/GPT', tag: 'C' };
+    const stripped = clean.replace(/\s*models?\s*$/i, '').trim() || clean;
+    return { label: stripped.slice(0, 14), tag: (stripped[0] || 'M').toUpperCase() };
+  }
+
+  function shortPlanBadge(plan) {
+    if (!plan) return '';
+    if (/ultra/i.test(plan)) return 'Ultra';
+    if (/pro/i.test(plan)) return 'Pro';
+    if (/free/i.test(plan)) return 'Free';
+    return plan.split(/\s+/).slice(-1)[0].slice(0, 8);
+  }
+
+  function quotaColor(pct, isLight) {
+    if (pct >= 60) return isLight ? '#059669' : '#34d399';
+    if (pct >= 25) return isLight ? '#d97706' : '#fbbf24';
+    return isLight ? '#e11d48' : '#fb7185';
+  }
+
+  function parseQuotaFromModalText(rawText) {
+    if (!rawText || !/(Weekly|Five Hour)\s+Limit\s+Remaining/i.test(rawText)) return null;
+    const lines = rawText.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    let plan = '';
+    for (const l of lines) {
+      const pm = l.match(/^Your plan:\s*(.+)$/i);
+      if (pm) {
+        plan = pm[1].trim();
+        break;
+      }
+    }
+
+    const groups = [];
+    let currentGroup = null;
+    const now = Date.now();
+
+    function isLikelyHeading(line) {
+      if (!line || line.length > 44) return false;
+      if (/^(\d{1,3}|<\s*1)\s*%$/.test(line)) return false;
+      if (/^(Weekly|Five Hour)\s+Limit/i.test(line)) return false;
+      if (/^You have\b|^When toggled|^Manage your|^Your plan|^Enable AI|^Choose the|^Plans the|^Carries out/i.test(line)) return false;
+      if (/^(High|Medium|Low|XHigh|Models|Settings|Plan|Model Credits|Orchestrator Settings)$/i.test(line)) return false;
+      return /model/i.test(line);
+    }
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (isLikelyHeading(line)) {
+        const meta = shortGroupMeta(line);
+        currentGroup = {
+          fullLabel: line,
+          label: meta.label,
+          tag: meta.tag,
+          weekly: null,
+          fiveHour: null
+        };
+        groups.push(currentGroup);
+        continue;
+      }
+
+      const isWeekly = /^Weekly Limit Remaining$/i.test(line);
+      const isFiveHour = /^Five Hour Limit Remaining$/i.test(line);
+      if (!isWeekly && !isFiveHour) continue;
+
+      if (!currentGroup) {
+        const prev = i > 0 ? lines[i - 1] : 'Models';
+        const meta = shortGroupMeta(prev);
+        currentGroup = { fullLabel: prev, label: meta.label, tag: meta.tag, weekly: null, fiveHour: null };
+        groups.push(currentGroup);
+      }
+
+      let pct = null;
+      let refreshAt = null;
+      let rawRefresh = '';
+
+      for (let j = i + 1; j < Math.min(lines.length, i + 5); j++) {
+        const next = lines[j];
+        if (isLikelyHeading(next) || /^(Weekly|Five Hour)\s+Limit\s+Remaining$/i.test(next)) break;
+        const pctMatch = next.match(/^(?:<\s*)?(\d{1,3})\s*%$/);
+        if (pctMatch) {
+          pct = next.startsWith('<') ? 0 : Math.min(100, Math.max(0, parseInt(pctMatch[1], 10)));
+          continue;
+        }
+        const refMatch = next.match(/(?:refresh|resets?)\s+in\s+([^.\n]+)/i);
+        if (refMatch) {
+          rawRefresh = refMatch[1].trim();
+          const durMs = parseDurationMs(rawRefresh);
+          if (durMs) refreshAt = now + durMs;
+        }
+      }
+
+      if (pct !== null) {
+        const entry = { pct, refreshAt, rawRefresh };
+        if (isWeekly) currentGroup.weekly = entry;
+        else currentGroup.fiveHour = entry;
+      }
+    }
+
+    const validGroups = groups.filter(g => g.weekly || g.fiveHour);
+    if (validGroups.length === 0) return null;
+    return { syncedAt: now, plan, groups: validGroups };
+  }
+
+  function findSidebarSettingsButton() {
+    const sidebar = document.querySelector('[data-testid="sidebar-split"] > :first-child');
+    if (!sidebar) return null;
+    return Array.from(sidebar.querySelectorAll('button, a')).find(
+      el => (el.innerText || '').trim() === 'Settings'
+    ) || null;
+  }
+
+  function tryPassiveCaptureQuotaFromModal() {
+    if (window.__AGY_QUOTA_SYNCING__) return;
+    const modal = document.querySelector('.settings-modal-container');
+    if (!modal) return;
+    const now = Date.now();
+    if (now - (window.__AGY_QUOTA_LAST_PASSIVE__ || 0) < 1800) return;
+    const text = modal.innerText || '';
+    if (!/Models\s*&\s*Usage/i.test(text)) return;
+    const parsed = parseQuotaFromModalText(text);
+    if (parsed) {
+      window.__AGY_QUOTA_LAST_PASSIVE__ = now;
+      saveQuotaCache(parsed);
+      refreshQuotaWidgets();
+    }
+  }
+
+  async function syncQuotaFromSettingsUI(openVisibleOnly = false) {
+    if (window.__AGY_QUOTA_SYNCING__) return;
+    const settingsBtn = findSidebarSettingsButton();
+    if (!settingsBtn) return;
+
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    window.__AGY_QUOTA_SYNCING__ = true;
+    refreshQuotaWidgets();
+
+    const wasAlreadyOpen = Boolean(document.querySelector('.settings-modal-container'));
+    let hideStyle = null;
+    let hiddenWrapper = null;
+    let prevWrapperOpacity = '';
+    let prevWrapperPe = '';
+
+    try {
+      if (!openVisibleOnly && !wasAlreadyOpen) {
+        hideStyle = document.createElement('style');
+        hideStyle.id = 'agy-quota-sync-hide-style';
+        hideStyle.textContent = `.settings-modal-container { opacity: 0 !important; pointer-events: none !important; transition: none !important; }`;
+        document.head.appendChild(hideStyle);
+      }
+
+      if (!wasAlreadyOpen) {
+        settingsBtn.click();
+      }
+
+      let modal = null;
+      for (let i = 0; i < 25; i++) {
+        modal = document.querySelector('.settings-modal-container');
+        if (modal) break;
+        await sleep(50);
+      }
+      if (!modal) return;
+
+      if (!openVisibleOnly && !wasAlreadyOpen && modal.parentElement && modal.parentElement !== document.body) {
+        hiddenWrapper = modal.parentElement;
+        prevWrapperOpacity = hiddenWrapper.style.opacity;
+        prevWrapperPe = hiddenWrapper.style.pointerEvents;
+        hiddenWrapper.style.opacity = '0';
+        hiddenWrapper.style.pointerEvents = 'none';
+      }
+
+      const modelsTab = Array.from(modal.querySelectorAll('button, [role="tab"], a'))
+        .find(b => /^Models$/i.test((b.innerText || '').trim()));
+      if (modelsTab) {
+        modelsTab.click();
+      }
+
+      if (openVisibleOnly) {
+        return;
+      }
+
+      let captured = null;
+      for (let i = 0; i < 32; i++) {
+        await sleep(75);
+        const curModal = document.querySelector('.settings-modal-container');
+        if (!curModal) break;
+        captured = parseQuotaFromModalText(curModal.innerText || '');
+        if (captured) break;
+      }
+
+      if (captured) {
+        saveQuotaCache(captured);
+      }
+
+      if (!wasAlreadyOpen) {
+        const curModal = document.querySelector('.settings-modal-container');
+        if (curModal) {
+          const closeBtn = Array.from(curModal.querySelectorAll('button')).find(
+            b => /^close$/i.test((b.getAttribute('aria-label') || '').trim())
+          );
+          if (closeBtn) closeBtn.click();
+          for (let w = 0; w < 12; w++) {
+            await sleep(50);
+            if (!document.querySelector('.settings-modal-container')) break;
+            if (w === 3) {
+              const esc = new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', keyCode: 27, bubbles: true, cancelable: true });
+              document.dispatchEvent(esc);
+              window.dispatchEvent(esc);
+            }
+          }
+        }
+      }
+    } catch (e) {
+    } finally {
+      if (hiddenWrapper) {
+        hiddenWrapper.style.opacity = prevWrapperOpacity;
+        hiddenWrapper.style.pointerEvents = prevWrapperPe;
+      }
+      if (hideStyle) hideStyle.remove();
+      window.__AGY_QUOTA_SYNCING__ = false;
+      refreshQuotaWidgets();
+    }
+  }
+
+  function getGroupSummary(g) {
+    const wPct = g.weekly ? g.weekly.pct : null;
+    const hPct = g.fiveHour ? g.fiveHour.pct : null;
+    let minPct = 100;
+    if (wPct !== null && hPct !== null) minPct = Math.min(wPct, hPct);
+    else if (hPct !== null) minPct = hPct;
+    else if (wPct !== null) minPct = wPct;
+
+    // Show the soonest active reset timer (5h preferred if <100% or active, else weekly).
+    let timer = '';
+    if (g.fiveHour && g.fiveHour.refreshAt) timer = formatCountdown(g.fiveHour.refreshAt);
+    else if (g.weekly && g.weekly.refreshAt) timer = formatCountdown(g.weekly.refreshAt);
+    return { minPct, wPct, hPct, timer };
+  }
+
+  function renderQuotaPopover(anchorEl) {
+    let pop = document.getElementById('agy-quota-popover');
+    if (pop && pop.style.display !== 'none') {
+      pop.style.display = 'none';
+      return;
+    }
+    if (!pop) {
+      pop = document.createElement('div');
+      pop.id = 'agy-quota-popover';
+      pop.style.cssText = 'position: fixed; z-index: 99998; width: 296px; border-radius: 13px; padding: 12px 14px; font-family: system-ui, -apple-system, sans-serif; color: #f4f4f5;';
+      document.body.appendChild(pop);
+
+      const onDocClick = (ev) => {
+        const pill = document.getElementById('agy-quota-titlebar-pill');
+        if (pop.style.display === 'none') return;
+        if (pop.contains(ev.target) || (pill && pill.contains(ev.target))) return;
+        pop.style.display = 'none';
+      };
+      const onKey = (ev) => {
+        if (ev.key === 'Escape' && pop.style.display !== 'none') pop.style.display = 'none';
+      };
+      document.addEventListener('mousedown', onDocClick, window.__AGY_SCROLL_AC__ ? { signal: window.__AGY_SCROLL_AC__.signal } : undefined);
+      window.addEventListener('keydown', onKey, window.__AGY_SCROLL_AC__ ? { signal: window.__AGY_SCROLL_AC__.signal } : undefined);
+    }
+
+    updateQuotaPopoverContent(pop);
+    pop.style.display = 'block';
+    const rect = anchorEl.getBoundingClientRect();
+    const top = Math.min(window.innerHeight - 260, Math.round(rect.bottom + 6));
+    const left = Math.max(12, Math.min(window.innerWidth - 308, Math.round(rect.right - 296)));
+    pop.style.top = top + 'px';
+    pop.style.left = left + 'px';
+  }
+
+  function updateQuotaPopoverContent(pop) {
+    if (!pop) return;
+    const st = getState();
+    const mainTheme = THEMES[st.themeName] || THEMES[DEFAULT_THEME_KEY];
+    const cache = readQuotaCache();
+    const syncing = Boolean(window.__AGY_QUOTA_SYNCING__);
+    const badge = cache && cache.plan ? shortPlanBadge(cache.plan) : '';
+
+    const rowsHtml = cache ? cache.groups.map((g) => {
+      const bars = [];
+      if (g.fiveHour) {
+        const c = quotaColor(g.fiveHour.pct, false);
+        const cd = formatCountdown(g.fiveHour.refreshAt);
+        bars.push(`
+          <div style="margin-top: 6px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;margin-bottom:3px;">
+              <span style="color:#a1a1aa;">5-Hour Limit</span>
+              <span style="display:flex;align-items:center;gap:6px;">
+                ${cd ? `<span style="color:#94a3b8;font-size:10.5px;">↻ ${cd}</span>` : ''}
+                <strong style="color:${c};font-weight:600;">${g.fiveHour.pct}%</strong>
+              </span>
+            </div>
+            <div style="height:5px;border-radius:999px;background:rgba(255,255,255,0.09);overflow:hidden;">
+              <div style="height:100%;width:${g.fiveHour.pct}%;background:${c};border-radius:999px;"></div>
+            </div>
+          </div>
+        `);
+      }
+      if (g.weekly) {
+        const c = quotaColor(g.weekly.pct, false);
+        const cd = formatCountdown(g.weekly.refreshAt);
+        bars.push(`
+          <div style="margin-top: 6px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;margin-bottom:3px;">
+              <span style="color:#a1a1aa;">Weekly Limit</span>
+              <span style="display:flex;align-items:center;gap:6px;">
+                ${cd ? `<span style="color:#94a3b8;font-size:10.5px;">↻ ${cd}</span>` : ''}
+                <strong style="color:${c};font-weight:600;">${g.weekly.pct}%</strong>
+              </span>
+            </div>
+            <div style="height:5px;border-radius:999px;background:rgba(255,255,255,0.09);overflow:hidden;">
+              <div style="height:100%;width:${g.weekly.pct}%;background:${c};border-radius:999px;"></div>
+            </div>
+          </div>
+        `);
+      }
+      return `
+        <div style="padding:8px 10px;border-radius:9px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.07);margin-top:8px;">
+          <div style="font-size:12px;font-weight:600;color:#f4f4f5;">${g.fullLabel}</div>
+          ${bars.join('')}
+        </div>
+      `;
+    }).join('') : `
+      <div style="padding:14px 8px;text-align:center;font-size:12px;color:#a1a1aa;">
+        Chưa có dữ liệu quota.<br/>Bấm <strong>Sync ngay</strong> để lấy từ Settings → Models.
+      </div>
+    `;
+
+    pop.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span style="color:${mainTheme.primary};display:inline-flex;">${BOLT_ICON_SVG}</span>
+          <span style="font-size:13px;font-weight:600;color:#f4f4f5;">Model Quota</span>
+          ${badge ? `<span style="font-size:10px;padding:1px 6px;border-radius:999px;background:${mainTheme.glow};color:${mainTheme.primary};border:1px solid ${mainTheme.borderColor};font-weight:600;">${badge}</span>` : ''}
+        </div>
+        <span style="font-size:10.5px;color:#71717a;">${cache ? formatAge(cache.syncedAt) : ''}</span>
+      </div>
+      ${rowsHtml}
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:10px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.08);">
+        <button id="agy-quota-pop-sync" type="button" style="flex:1;display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:5px 10px;border-radius:8px;background:${mainTheme.glow};border:1px solid ${mainTheme.borderColor};color:${mainTheme.primary};font-size:11.5px;font-weight:600;cursor:pointer;">
+          <span class="${syncing ? 'agy-quota-spinning' : ''}" style="display:inline-flex;">${REFRESH_ICON_SVG}</span>
+          <span>${syncing ? 'Đang đồng bộ...' : 'Sync ngay'}</span>
+        </button>
+        <button id="agy-quota-pop-open" type="button" style="padding:5px 10px;border-radius:8px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);color:#d4d4d8;font-size:11.5px;cursor:pointer;">
+          Models ↗
+        </button>
+      </div>
+    `;
+
+    const syncBtn = pop.querySelector('#agy-quota-pop-sync');
+    if (syncBtn) {
+      syncBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        syncQuotaFromSettingsUI(false);
+      });
+    }
+    const openBtn = pop.querySelector('#agy-quota-pop-open');
+    if (openBtn) {
+      openBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        pop.style.display = 'none';
+        syncQuotaFromSettingsUI(true);
+      });
+    }
+  }
+
+  function injectOrUpdateSidebarQuotaCard() {
+    const st = getState();
+    const existing = document.getElementById('agy-quota-sidebar-card');
+    if (!st.showQuotaSidebar) {
+      if (existing) existing.remove();
+      return;
+    }
+
+    const settingsBtn = findSidebarSettingsButton();
+    if (!settingsBtn || !settingsBtn.parentElement) return;
+
+    let card = existing;
+    if (!card || card.parentElement !== settingsBtn.parentElement) {
+      if (card) card.remove();
+      card = document.createElement('div');
+      card.id = 'agy-quota-sidebar-card';
+      card.style.cssText = 'border-radius: 10px; padding: 7px 9px; margin-bottom: 5px; font-family: system-ui, -apple-system, sans-serif; user-select: none;';
+      settingsBtn.parentElement.insertBefore(card, settingsBtn);
+    }
+
+    const mainTheme = THEMES[st.themeName] || THEMES[DEFAULT_THEME_KEY];
+    const isLight = Boolean(mainTheme.isLight);
+    const mutedCol = isLight ? '#475569' : '#94a3b8';
+    const trackBg = isLight ? 'rgba(15, 23, 42, 0.10)' : 'rgba(255, 255, 255, 0.09)';
+    const cache = readQuotaCache();
+    const syncing = Boolean(window.__AGY_QUOTA_SYNCING__);
+    const expanded = localStorage.getItem(STORAGE_QUOTA_EXPANDED) === 'true';
+    const badge = cache && cache.plan ? shortPlanBadge(cache.plan) : '';
+    const renderKey = `${st.themeName}|${isLight}|${syncing}|${expanded}|${cache ? cache.syncedAt : 0}|${Math.floor(Date.now() / 30000)}`;
+    if (card.dataset.agyRenderKey === renderKey) return;
+    card.dataset.agyRenderKey = renderKey;
+
+    let bodyHtml = '';
+    if (!cache) {
+      bodyHtml = `
+        <button id="agy-quota-sb-init" type="button" style="width:100%;margin-top:6px;padding:5px 8px;border-radius:7px;background:${mainTheme.glow};border:1px solid ${mainTheme.borderColor};color:${mainTheme.primary};font-size:11px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px;">
+          <span class="${syncing ? 'agy-quota-spinning' : ''}" style="display:inline-flex;">${REFRESH_ICON_SVG}</span>
+          <span>${syncing ? 'Đang lấy quota...' : 'Bấm để sync Quota'}</span>
+        </button>
+      `;
+    } else {
+      bodyHtml = cache.groups.map((g) => {
+        const s = getGroupSummary(g);
+        const col = quotaColor(s.minPct, isLight);
+        const tip = [
+          g.fiveHour ? `5h: ${g.fiveHour.pct}%${g.fiveHour.refreshAt ? ' (reset ' + formatCountdown(g.fiveHour.refreshAt) + ')' : ''}` : '',
+          g.weekly ? `Weekly: ${g.weekly.pct}%${g.weekly.refreshAt ? ' (reset ' + formatCountdown(g.weekly.refreshAt) + ')' : ''}` : ''
+        ].filter(Boolean).join(' • ');
+
+        if (!expanded) {
+          return `
+            <div title="${tip}" style="margin-top:6px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;line-height:1.25;margin-bottom:3px;">
+                <span style="font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${g.label}</span>
+                <span style="display:flex;align-items:center;gap:5px;flex-shrink:0;">
+                  ${s.timer ? `<span style="font-size:10px;color:${mutedCol};">${s.timer}</span>` : ''}
+                  <strong style="color:${col};font-weight:650;">${s.minPct}%</strong>
+                </span>
+              </div>
+              <div style="height:4px;border-radius:999px;background:${trackBg};overflow:hidden;">
+                <div style="height:100%;width:${s.minPct}%;background:${col};border-radius:999px;"></div>
+              </div>
+            </div>
+          `;
+        }
+
+        const subBars = [];
+        if (g.fiveHour) {
+          const c5 = quotaColor(g.fiveHour.pct, isLight);
+          const t5 = formatCountdown(g.fiveHour.refreshAt);
+          subBars.push(`
+            <div style="margin-top:4px;">
+              <div style="display:flex;justify-content:space-between;font-size:10px;color:${mutedCol};margin-bottom:2px;">
+                <span>5h${t5 ? ' · ' + t5 : ''}</span>
+                <strong style="color:${c5};">${g.fiveHour.pct}%</strong>
+              </div>
+              <div style="height:3.5px;border-radius:999px;background:${trackBg};overflow:hidden;">
+                <div style="height:100%;width:${g.fiveHour.pct}%;background:${c5};border-radius:999px;"></div>
+              </div>
+            </div>
+          `);
+        }
+        if (g.weekly) {
+          const cw = quotaColor(g.weekly.pct, isLight);
+          const tw = formatCountdown(g.weekly.refreshAt);
+          subBars.push(`
+            <div style="margin-top:4px;">
+              <div style="display:flex;justify-content:space-between;font-size:10px;color:${mutedCol};margin-bottom:2px;">
+                <span>Tuần${tw ? ' · ' + tw : ''}</span>
+                <strong style="color:${cw};">${g.weekly.pct}%</strong>
+              </div>
+              <div style="height:3.5px;border-radius:999px;background:${trackBg};overflow:hidden;">
+                <div style="height:100%;width:${g.weekly.pct}%;background:${cw};border-radius:999px;"></div>
+              </div>
+            </div>
+          `);
+        }
+        return `
+          <div style="margin-top:7px;padding-top:5px;border-top:1px solid ${isLight ? 'rgba(15,23,42,0.08)' : 'rgba(255,255,255,0.07)'};">
+            <div style="font-size:11px;font-weight:600;">${g.label}</div>
+            ${subBars.join('')}
+          </div>
+        `;
+      }).join('');
+
+      if (expanded) {
+        bodyHtml += `
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:7px;padding-top:5px;border-top:1px solid ${isLight ? 'rgba(15,23,42,0.08)' : 'rgba(255,255,255,0.07)'};font-size:10px;color:${mutedCol};">
+            <span>Cập nhật ${formatAge(cache.syncedAt)}</span>
+            <button id="agy-quota-sb-models" type="button" style="background:transparent;border:none;color:${mainTheme.primary};font-size:10.5px;cursor:pointer;padding:0;font-weight:500;">Models ↗</button>
+          </div>
+        `;
+      }
+    }
+
+    card.innerHTML = `
+      <div id="agy-quota-sb-head" style="display:flex;justify-content:space-between;align-items:center;gap:4px;cursor:pointer;">
+        <div style="display:flex;align-items:center;gap:5px;min-width:0;">
+          <span style="color:${mainTheme.primary};display:inline-flex;flex-shrink:0;">${BOLT_ICON_SVG}</span>
+          <span style="font-size:11.5px;font-weight:650;letter-spacing:0.1px;">Quota</span>
+          ${badge ? `<span style="font-size:9.5px;padding:0.5px 5px;border-radius:999px;background:${mainTheme.glow};color:${mainTheme.primary};border:1px solid ${mainTheme.borderColor};font-weight:600;">${badge}</span>` : ''}
+        </div>
+        <div style="display:flex;align-items:center;gap:4px;flex-shrink:0;">
+          <button id="agy-quota-sb-sync" type="button" title="Đồng bộ Quota từ Settings → Models" style="background:transparent;border:none;color:${mutedCol};cursor:pointer;padding:2px;display:inline-flex;align-items:center;border-radius:4px;">
+            <span class="${syncing ? 'agy-quota-spinning' : ''}" style="display:inline-flex;">${REFRESH_ICON_SVG}</span>
+          </button>
+          <span style="font-size:10px;color:${mutedCol};padding:0 1px;">${expanded ? '▴' : '▾'}</span>
+        </div>
+      </div>
+      <div id="agy-quota-sb-body" style="cursor:pointer;">${bodyHtml}</div>
+    `;
+
+    const syncBtn = card.querySelector('#agy-quota-sb-sync');
+    if (syncBtn) {
+      syncBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        syncQuotaFromSettingsUI(false);
+      });
+    }
+    const initBtn = card.querySelector('#agy-quota-sb-init');
+    if (initBtn) {
+      initBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        syncQuotaFromSettingsUI(false);
+      });
+    }
+    const modelsBtn = card.querySelector('#agy-quota-sb-models');
+    if (modelsBtn) {
+      modelsBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        syncQuotaFromSettingsUI(true);
+      });
+    }
+    const toggleExpand = () => {
+      if (!readQuotaCache()) {
+        syncQuotaFromSettingsUI(false);
+        return;
+      }
+      localStorage.setItem(STORAGE_QUOTA_EXPANDED, expanded ? 'false' : 'true');
+      injectOrUpdateSidebarQuotaCard();
+    };
+    const head = card.querySelector('#agy-quota-sb-head');
+    const body = card.querySelector('#agy-quota-sb-body');
+    if (head) head.addEventListener('click', toggleExpand);
+    if (body) body.addEventListener('click', toggleExpand);
+  }
+
+  function injectOrUpdateTitlebarQuotaPill() {
+    const st = getState();
+    const existing = document.getElementById('agy-quota-titlebar-pill');
+    if (!st.showQuotaTitlebar) {
+      if (existing) existing.remove();
+      const pop = document.getElementById('agy-quota-popover');
+      if (pop) pop.style.display = 'none';
+      return;
+    }
+
+    const toolbar = document.querySelector('[data-testid="pane-titlebar-toolbar"]');
+    if (!toolbar) return;
+
+    let pill = existing;
+    if (!pill || pill.parentElement !== toolbar) {
+      if (pill) pill.remove();
+      pill = document.createElement('button');
+      pill.id = 'agy-quota-titlebar-pill';
+      pill.type = 'button';
+      pill.style.cssText = 'display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 9px; margin-right: 6px; border-radius: 9999px; font-size: 11px; font-weight: 550; cursor: pointer; white-space: nowrap; -webkit-app-region: no-drag; font-family: system-ui, -apple-system, sans-serif; transition: border-color 0.15s ease, background-color 0.15s ease;';
+      pill.addEventListener('click', (e) => {
+        e.stopPropagation();
+        renderQuotaPopover(pill);
+      });
+      toolbar.insertBefore(pill, toolbar.firstChild);
+    }
+
+    const mainTheme = THEMES[st.themeName] || THEMES[DEFAULT_THEME_KEY];
+    const isLight = Boolean(mainTheme.isLight);
+    const cache = readQuotaCache();
+    const syncing = Boolean(window.__AGY_QUOTA_SYNCING__);
+    const pillKey = `${st.themeName}|${isLight}|${syncing}|${cache ? cache.syncedAt : 0}|${Math.floor(Date.now() / 30000)}`;
+    if (pill.dataset.agyRenderKey === pillKey) return;
+    pill.dataset.agyRenderKey = pillKey;
+
+    if (!cache) {
+      pill.title = 'Bấm để xem hoặc đồng bộ Model Quota';
+      pill.innerHTML = `
+        <span class="${syncing ? 'agy-quota-spinning' : ''}" style="color:${mainTheme.primary};display:inline-flex;">${syncing ? REFRESH_ICON_SVG : BOLT_ICON_SVG}</span>
+        <span>${syncing ? 'Sync...' : 'Quota'}</span>
+      `;
+      return;
+    }
+
+    let overallMin = 100;
+    let urgentTimer = '';
+    const parts = cache.groups.slice(0, 2).map((g) => {
+      const s = getGroupSummary(g);
+      if (s.minPct < overallMin) overallMin = s.minPct;
+      if (!urgentTimer && s.timer) urgentTimer = s.timer;
+      const col = quotaColor(s.minPct, isLight);
+      return `<span style="display:inline-flex;align-items:center;gap:2px;"><span style="opacity:0.75;">${g.tag}</span><strong style="color:${col};font-weight:650;">${s.minPct}%</strong></span>`;
+    });
+
+    const dotCol = quotaColor(overallMin, isLight);
+    pill.title = `Model Quota (${cache.plan || 'Antigravity'}) • Cập nhật ${formatAge(cache.syncedAt)} — Bấm để xem chi tiết`;
+    pill.innerHTML = `
+      <span style="width:6px;height:6px;border-radius:999px;background:${dotCol};flex-shrink:0;"></span>
+      ${parts.join('<span style="opacity:0.35;">·</span>')}
+      ${urgentTimer ? `<span style="opacity:0.65;font-size:10px;margin-left:1px;">${urgentTimer}</span>` : ''}
+    `;
+  }
+
+  function refreshQuotaWidgets() {
+    injectOrUpdateSidebarQuotaCard();
+    injectOrUpdateTitlebarQuotaPill();
+    const pop = document.getElementById('agy-quota-popover');
+    if (pop && pop.style.display !== 'none') {
+      updateQuotaPopoverContent(pop);
+    }
+  }
+
+  window.__ANTIGRAVITY_SYNC_QUOTA__ = syncQuotaFromSettingsUI;
+
   function tick(forceMetrics = false) {
     injectMainSidebarButton();
     injectSettingsModalButton();
+    injectOrUpdateSidebarQuotaCard();
+    injectOrUpdateTitlebarQuotaPill();
+    tryPassiveCaptureQuotaFromModal();
     hookSidebarScroll();
     hookShellMetrics(forceMetrics);
   }
 
+  function isOwnQuotaMutation(m) {
+    const t = m && m.target;
+    if (!t || t.nodeType !== 1) return false;
+    return Boolean(t.closest && t.closest('#agy-quota-sidebar-card, #agy-quota-titlebar-pill, #agy-quota-popover'));
+  }
+
   function scheduleTick(mutations) {
+    if (Array.isArray(mutations) && mutations.length > 0 && mutations.every(isOwnQuotaMutation)) {
+      return;
+    }
     const attrChanged = Array.isArray(mutations) && mutations.some((m) => m.type === 'attributes');
     if (attrChanged) {
       window.__AGY_FORCE_METRICS__ = true;
@@ -1970,6 +2746,10 @@
     clearTimeout(window.__AGY_TICK_TIMER__);
     window.__AGY_TICK_TIMER__ = 0;
   }
+  if (window.__AGY_QUOTA_TIMER__) {
+    clearInterval(window.__AGY_QUOTA_TIMER__);
+    window.__AGY_QUOTA_TIMER__ = 0;
+  }
   if (window.__AGY_TICK_RAF__) {
     cancelAnimationFrame(window.__AGY_TICK_RAF__);
     window.__AGY_TICK_RAF__ = 0;
@@ -2000,6 +2780,22 @@
   if (staleSidebarBtn) staleSidebarBtn.remove();
   const staleSettingsBtn = document.getElementById('agy-custom-theme-settings-btn');
   if (staleSettingsBtn) staleSettingsBtn.remove();
+  const staleQuotaCard = document.getElementById('agy-quota-sidebar-card');
+  if (staleQuotaCard) staleQuotaCard.remove();
+  const staleQuotaPill = document.getElementById('agy-quota-titlebar-pill');
+  if (staleQuotaPill) staleQuotaPill.remove();
+  const staleQuotaPop = document.getElementById('agy-quota-popover');
+  if (staleQuotaPop) staleQuotaPop.remove();
+  const staleQuotaHide = document.getElementById('agy-quota-sync-hide-style');
+  if (staleQuotaHide) staleQuotaHide.remove();
+  window.__AGY_QUOTA_SYNCING__ = false;
+
+  // Lightweight 30s tick solely for live countdown display (0% CPU, zero DOM reflow on .agy-shell)
+  window.__AGY_QUOTA_TIMER__ = setInterval(() => {
+    if (!document.hidden && readQuotaCache()) {
+      refreshQuotaWidgets();
+    }
+  }, 30000);
 
   window.__AGY_HOLE_EL__ = null;
   window.__AGY_SIDE_EL__ = null;
