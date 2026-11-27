@@ -24,6 +24,7 @@
   const STORAGE_QUOTA_CACHE = 'agy_quota_cache_v1';
   const STORAGE_AUTO_ROTATE = 'agy_auto_rotate_v1';
   const STORAGE_AUTO_ROTATE_MIN = 'agy_auto_rotate_min_v1';
+  const STORAGE_COMPACT_SIDEBAR = 'agy_compact_sidebar_v1';
 
   const CHECK_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
   const REFRESH_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg>`;
@@ -79,7 +80,10 @@
     const rawRotMin = localStorage.getItem(STORAGE_AUTO_ROTATE_MIN) ?? init.autoRotateMin;
     const parsedRotMin = rawRotMin !== undefined && rawRotMin !== null && rawRotMin !== '' ? parseInt(rawRotMin, 10) : 5;
     const autoRotateMin = Number.isFinite(parsedRotMin) && parsedRotMin >= 0 ? parsedRotMin : 5;
-    return { themeName, bubbleName, inputStyle, dimming, wpEnabled, customWp, userAvatar, agentAvatar, glassBlur, avatarSize, avatarRadius, showQuotaSidebar, showQuotaTitlebar, autoRotate, autoRotateMin };
+    const compactSidebar = localStorage.getItem(STORAGE_COMPACT_SIDEBAR) !== null
+      ? localStorage.getItem(STORAGE_COMPACT_SIDEBAR) !== 'false'
+      : (init.compactSidebar !== undefined ? init.compactSidebar : true);
+    return { themeName, bubbleName, inputStyle, dimming, wpEnabled, customWp, userAvatar, agentAvatar, glassBlur, avatarSize, avatarRadius, showQuotaSidebar, showQuotaTitlebar, autoRotate, autoRotateMin, compactSidebar };
   }
 
   // Downscale user/agent avatar uploads to 192x192 WebP once so theme_config.json stays tiny
@@ -381,6 +385,9 @@
       }
       if (overrides.autoRotateMin !== undefined) {
         localStorage.setItem(STORAGE_AUTO_ROTATE_MIN, String(st.autoRotateMin));
+      }
+      if (overrides.compactSidebar !== undefined) {
+        localStorage.setItem(STORAGE_COMPACT_SIDEBAR, String(st.compactSidebar));
       }
     } catch (e) {}
 
@@ -875,8 +882,8 @@
       }
       `}
       .agy-shell [class*="@container/titlebar"] [data-testid="breadcrumb-segment"],
-      .agy-shell [class*="@container/titlebar"] [data-testid="pane-titlebar-toolbar"] button:not(#agy-quota-titlebar-pill),
-      .agy-shell [class*="@container/titlebar"] [data-testid="pane-titlebar-toolbar"] button:not(#agy-quota-titlebar-pill) span {
+      .agy-shell [class*="@container/titlebar"] [data-testid="pane-titlebar-toolbar"] button:not(#agy-quota-titlebar-pill):not(#agy-custom-theme-sidebar-btn),
+      .agy-shell [class*="@container/titlebar"] [data-testid="pane-titlebar-toolbar"] button:not(#agy-quota-titlebar-pill):not(#agy-custom-theme-sidebar-btn) span {
         color: ${uiInk} !important;
         text-shadow: ${uiShadow};
       }
@@ -1079,6 +1086,25 @@
       #agy-custom-theme-sidebar-btn svg {
         color: ${mainTheme.primary} !important;
       }
+      #agy-custom-theme-sidebar-btn[data-agy-placement="titlebar"] {
+        background: ${isLight
+          ? 'linear-gradient(135deg, rgba(255, 255, 255, 0.90) 0%, rgba(236, 253, 245, 0.84) 100%)'
+          : `linear-gradient(135deg, rgba(${overlayRgb}, 0.86) 0%, ${mainTheme.cardBg || 'rgba(12, 20, 40, 0.88)'} 100%)`};
+        border: 1px solid ${mainTheme.borderColor};
+        color: ${mainTheme.primary};
+        box-shadow: 0 2px 8px rgba(0, 0, 0, ${isLight ? '0.10' : '0.36'}), 0 0 8px ${mainTheme.glow};
+      }
+      #agy-custom-theme-sidebar-btn[data-agy-placement="titlebar"]:hover {
+        background: ${pillHoverBg};
+        border-color: ${mainTheme.primary};
+        box-shadow: 0 2px 10px rgba(0, 0, 0, ${isLight ? '0.14' : '0.45'}), 0 0 12px ${mainTheme.glow};
+      }
+      ${st.compactSidebar ? `
+      [data-testid="sidebar-split"] > :first-child [data-testid="automations-button"],
+      [data-testid="sidebar-split"] > :first-child a[href="/customizations"] {
+        display: none !important;
+      }
+      ` : ''}
       #agy-quota-sidebar-card {
         background: ${mainTheme.frameBg};
         border-radius: 13px;
@@ -1144,6 +1170,9 @@
 
     syncTitleBarOverlay(st);
     scheduleTitleBarSync(st);
+    if (typeof injectMainSidebarButton === 'function') {
+      injectMainSidebarButton();
+    }
     if (typeof refreshQuotaWidgets === 'function') {
       refreshQuotaWidgets();
     }
@@ -1461,6 +1490,10 @@
                 <input id="agy-quota-tb-toggle" type="checkbox" ${st.showQuotaTitlebar ? 'checked' : ''} style="accent-color: ${mainTheme.primary}; cursor: pointer;" />
                 Titlebar Quota
               </label>
+              <label title="Ẩn Automations, Customizations & Custom theme ở sidebar để mở rộng danh sách Project" style="display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: #d4d4d8; cursor: pointer;">
+                <input id="agy-compact-sb-toggle" type="checkbox" ${st.compactSidebar ? 'checked' : ''} style="accent-color: ${mainTheme.primary}; cursor: pointer;" />
+                Compact Sidebar
+              </label>
               <label style="display: flex; align-items: center; gap: 5px; font-size: 12px; color: #d4d4d8;">
                 Auto
                 <select id="agy-rotate-select" style="background: rgba(15, 23, 42, 0.85); color: #f4f4f5; border: 1px solid ${mainTheme.borderColor}; border-radius: 7px; padding: 3px 6px; font-size: 12px; cursor: pointer;">
@@ -1722,6 +1755,12 @@
         applyTheme({ showQuotaTitlebar: e.target.checked });
       });
     }
+    const compactSbToggle = container.querySelector('#agy-compact-sb-toggle');
+    if (compactSbToggle) {
+      compactSbToggle.addEventListener('change', (e) => {
+        applyTheme({ compactSidebar: e.target.checked });
+      });
+    }
     const rotateSelect = container.querySelector('#agy-rotate-select');
     if (rotateSelect) {
       rotateSelect.addEventListener('change', (e) => {
@@ -1874,7 +1913,7 @@
             throw new Error('Config must be a JSON object');
           }
           const allowed = {};
-          const keys = ['themeName', 'bubbleName', 'inputStyle', 'dimming', 'wpEnabled', 'customWp', 'userAvatar', 'agentAvatar', 'glassBlur', 'avatarSize', 'avatarRadius', 'showQuotaSidebar', 'showQuotaTitlebar', 'autoRotate', 'autoRotateMin'];
+          const keys = ['themeName', 'bubbleName', 'inputStyle', 'dimming', 'wpEnabled', 'customWp', 'userAvatar', 'agentAvatar', 'glassBlur', 'avatarSize', 'avatarRadius', 'showQuotaSidebar', 'showQuotaTitlebar', 'autoRotate', 'autoRotateMin', 'compactSidebar'];
           keys.forEach((k) => {
             if (parsed[k] !== undefined) allowed[k] = parsed[k];
           });
@@ -1903,6 +1942,7 @@
       localStorage.removeItem(STORAGE_QUOTA_TITLEBAR);
       localStorage.removeItem(STORAGE_AUTO_ROTATE);
       localStorage.removeItem(STORAGE_AUTO_ROTATE_MIN);
+      localStorage.removeItem(STORAGE_COMPACT_SIDEBAR);
       applyTheme({
         themeName: DEFAULT_THEME_KEY,
         bubbleName: DEFAULT_THEME_KEY,
@@ -1918,7 +1958,8 @@
         showQuotaSidebar: true,
         showQuotaTitlebar: true,
         autoRotate: true,
-        autoRotateMin: 5
+        autoRotateMin: 5,
+        compactSidebar: true
       });
       const defTh = THEMES[DEFAULT_THEME_KEY] || {};
       syncAvPreview(userAvPreview, defTh.userAvatar || '', 'U');
@@ -1936,6 +1977,7 @@
       if (wpToggle) wpToggle.checked = true;
       if (quotaSbToggle) quotaSbToggle.checked = true;
       if (quotaTbToggle) quotaTbToggle.checked = true;
+      if (compactSbToggle) compactSbToggle.checked = true;
       if (rotateSelect) rotateSelect.value = '5';
 
       container.querySelectorAll('.agy-preset-card').forEach(c => {
@@ -2019,7 +2061,42 @@
   }
 
   function injectMainSidebarButton() {
-    if (document.getElementById('agy-custom-theme-sidebar-btn')) return;
+    const st = getState();
+    const existing = document.getElementById('agy-custom-theme-sidebar-btn');
+
+    if (st.compactSidebar) {
+      // Compact mode: keep sidebar clean (Automations/Customizations/Custom theme hidden)
+      // and place a zero-footprint ✨ Theme trigger on the titlebar toolbar next to Gemini Quota.
+      const toolbar = document.querySelector('[data-testid="pane-titlebar-toolbar"]');
+      if (!toolbar) return;
+      if (existing && existing.dataset.agyPlacement === 'titlebar' && existing.parentElement === toolbar) {
+        return;
+      }
+      if (existing) existing.remove();
+
+      const btn = document.createElement('button');
+      btn.id = 'agy-custom-theme-sidebar-btn';
+      btn.dataset.agyPlacement = 'titlebar';
+      btn.type = 'button';
+      btn.title = 'Custom Theme Studio';
+      btn.style.cssText = 'display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 24px; padding: 0; margin-right: 6px; border-radius: 9999px; cursor: pointer; -webkit-app-region: no-drag; transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;';
+      btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>`;
+      const quotaPill = document.getElementById('agy-quota-titlebar-pill');
+      if (quotaPill && quotaPill.parentElement === toolbar) {
+        toolbar.insertBefore(btn, quotaPill.nextSibling);
+      } else {
+        toolbar.insertBefore(btn, toolbar.firstChild);
+      }
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        window.__ANTIGRAVITY_OPEN_THEME_MODAL__();
+      });
+      return;
+    }
+
+    if (existing && existing.dataset.agyPlacement === 'sidebar') return;
+    if (existing) existing.remove();
 
     const sidebars = Array.from(
       document.querySelectorAll('[data-testid="sidebar-split"] > :first-child, aside, [data-sidebar="true"], .bg-sidebar')
@@ -2037,6 +2114,7 @@
 
     const btn = document.createElement('button');
     btn.id = 'agy-custom-theme-sidebar-btn';
+    btn.dataset.agyPlacement = 'sidebar';
     btn.type = 'button';
     btn.className = 'w-full flex items-center gap-2.5 px-3 py-1.5 text-sm font-medium text-muted-foreground hover:text-foreground rounded-lg transition-colors cursor-pointer select-none';
     btn.style.cssText = 'text-align: left;';
