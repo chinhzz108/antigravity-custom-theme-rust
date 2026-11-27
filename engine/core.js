@@ -22,11 +22,9 @@
   const STORAGE_QUOTA_SIDEBAR = 'agy_quota_sidebar_v1';
   const STORAGE_QUOTA_TITLEBAR = 'agy_quota_titlebar_v1';
   const STORAGE_QUOTA_CACHE = 'agy_quota_cache_v1';
-  const STORAGE_QUOTA_EXPANDED = 'agy_quota_expanded_v1';
 
   const CHECK_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
   const REFRESH_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg>`;
-  const BOLT_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>`;
 
   const INPUT_STYLES = {
     'sync': {
@@ -863,8 +861,8 @@
       }
       `}
       .agy-shell [class*="@container/titlebar"] [data-testid="breadcrumb-segment"],
-      .agy-shell [class*="@container/titlebar"] [data-testid="pane-titlebar-toolbar"] button,
-      .agy-shell [class*="@container/titlebar"] [data-testid="pane-titlebar-toolbar"] span {
+      .agy-shell [class*="@container/titlebar"] [data-testid="pane-titlebar-toolbar"] button:not(#agy-quota-titlebar-pill),
+      .agy-shell [class*="@container/titlebar"] [data-testid="pane-titlebar-toolbar"] button:not(#agy-quota-titlebar-pill) span {
         color: ${uiInk} !important;
         text-shadow: ${uiShadow};
       }
@@ -1068,24 +1066,54 @@
         color: ${mainTheme.primary} !important;
       }
       #agy-quota-sidebar-card {
-        background: ${isLight ? 'rgba(255, 255, 255, 0.72)' : (mainTheme.cardBg || 'rgba(12, 18, 34, 0.78)')};
-        border: 1px solid ${mainTheme.borderColor};
+        background: ${mainTheme.frameBg};
+        border-radius: 13px;
+        padding: 1.25px;
+        margin-bottom: 6px;
+        box-shadow: 0 4px 14px rgba(0, 0, 0, ${isLight ? '0.09' : '0.36'}), 0 0 12px ${mainTheme.glow};
+      }
+      #agy-quota-sidebar-inner {
+        position: relative;
+        border-radius: 11.75px;
+        padding: 9px 10px 7px 10px;
+        background: ${isLight
+          ? 'linear-gradient(155deg, rgba(255, 255, 255, 0.92) 0%, rgba(236, 253, 245, 0.86) 100%)'
+          : `radial-gradient(circle at 88% 12%, ${mainTheme.glow} 0%, transparent 56%), linear-gradient(155deg, ${mainTheme.cardBg || 'rgba(10, 16, 34, 0.90)'} 0%, rgba(${overlayRgb}, 0.88) 100%)`};
         color: ${uiInk};
+        overflow: hidden;
+      }
+      #agy-quota-sb-sync:hover {
+        background: ${isLight ? 'rgba(15, 23, 42, 0.08)' : 'rgba(255, 255, 255, 0.11)'} !important;
+        color: ${mainTheme.primary} !important;
       }
       #agy-quota-titlebar-pill {
-        background: ${pillBg};
-        border: 1px solid ${pillBorder};
+        background: ${isLight
+          ? 'linear-gradient(135deg, rgba(255, 255, 255, 0.90) 0%, rgba(236, 253, 245, 0.84) 100%)'
+          : `linear-gradient(135deg, rgba(${overlayRgb}, 0.86) 0%, ${mainTheme.cardBg || 'rgba(12, 20, 40, 0.88)'} 100%)`};
+        border: 1px solid ${mainTheme.borderColor};
         color: ${pillText};
+        box-shadow: 0 2px 8px rgba(0, 0, 0, ${isLight ? '0.10' : '0.36'}), 0 0 8px ${mainTheme.glow};
       }
       #agy-quota-titlebar-pill:hover {
         background: ${pillHoverBg};
-        border-color: ${mainTheme.borderColor};
+        border-color: ${mainTheme.primary};
+        box-shadow: 0 2px 10px rgba(0, 0, 0, ${isLight ? '0.14' : '0.45'}), 0 0 12px ${mainTheme.glow};
       }
       #agy-quota-popover {
-        background: ${modalBg};
-        border: 1px solid ${mainTheme.borderColor};
-        box-shadow: 0 16px 40px rgba(0, 0, 0, ${isLight ? '0.20' : '0.72'});
-        color: #f4f4f5;
+        background: ${mainTheme.frameBg};
+        border-radius: 15px;
+        padding: 1.4px;
+        box-shadow: 0 18px 46px rgba(0, 0, 0, ${isLight ? '0.22' : '0.80'}), 0 0 22px ${mainTheme.glow};
+      }
+      #agy-quota-popover-inner {
+        position: relative;
+        border-radius: 13.6px;
+        padding: 13px 15px;
+        background: ${isLight
+          ? 'linear-gradient(160deg, rgba(255, 255, 255, 0.97) 0%, rgba(236, 253, 245, 0.95) 100%)'
+          : `radial-gradient(circle at 90% 10%, ${mainTheme.glow} 0%, transparent 52%), ${modalBg}`};
+        color: ${isLight ? '#0f172a' : '#f4f4f5'};
+        overflow: hidden;
       }
       @keyframes agyQuotaSpin {
         from { transform: rotate(0deg); }
@@ -2086,12 +2114,6 @@
     return plan.split(/\s+/).slice(-1)[0].slice(0, 8);
   }
 
-  function quotaColor(pct, isLight) {
-    if (pct >= 60) return isLight ? '#059669' : '#34d399';
-    if (pct >= 25) return isLight ? '#d97706' : '#fbbf24';
-    return isLight ? '#e11d48' : '#fb7185';
-  }
-
   function parseQuotaFromModalText(rawText) {
     if (!rawText || !/(Weekly|Five Hour)\s+Limit\s+Remaining/i.test(rawText)) return null;
     const lines = rawText.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
@@ -2295,19 +2317,72 @@
     }
   }
 
-  function getGroupSummary(g) {
-    const wPct = g.weekly ? g.weekly.pct : null;
-    const hPct = g.fiveHour ? g.fiveHour.pct : null;
-    let minPct = 100;
-    if (wPct !== null && hPct !== null) minPct = Math.min(wPct, hPct);
-    else if (hPct !== null) minPct = hPct;
-    else if (wPct !== null) minPct = wPct;
+  function getGeminiGroup(cache) {
+    if (!cache || !Array.isArray(cache.groups) || cache.groups.length === 0) return null;
+    return cache.groups.find(g => /gemini/i.test(g.fullLabel || g.label || '')) || null;
+  }
 
-    // Show the soonest active reset timer (5h preferred if <100% or active, else weekly).
-    let timer = '';
-    if (g.fiveHour && g.fiveHour.refreshAt) timer = formatCountdown(g.fiveHour.refreshAt);
-    else if (g.weekly && g.weekly.refreshAt) timer = formatCountdown(g.weekly.refreshAt);
-    return { minPct, wPct, hPct, timer };
+  function animeBarPalette(pct, isLight, mainTheme) {
+    if (pct >= 60) {
+      return isLight
+        ? { text: '#047857', grad: 'linear-gradient(90deg, #10b981 0%, #06b6d4 100%)', tip: '#ecfdf5', glow: 'rgba(16, 185, 129, 0.40)' }
+        : { text: '#67e8f9', grad: `linear-gradient(90deg, ${mainTheme.primary || '#38bdf8'} 0%, ${mainTheme.secondary || '#a78bfa'} 55%, #34d399 100%)`, tip: '#ffffff', glow: 'rgba(103, 232, 249, 0.55)' };
+    }
+    if (pct >= 25) {
+      return isLight
+        ? { text: '#b45309', grad: 'linear-gradient(90deg, #f59e0b 0%, #fbbf24 100%)', tip: '#fffbeb', glow: 'rgba(245, 158, 11, 0.40)' }
+        : { text: '#fcd34d', grad: 'linear-gradient(90deg, #f59e0b 0%, #fbbf24 55%, #fde68a 100%)', tip: '#ffffff', glow: 'rgba(251, 191, 36, 0.50)' };
+    }
+    return isLight
+      ? { text: '#be123c', grad: 'linear-gradient(90deg, #f43f5e 0%, #ec4899 100%)', tip: '#fff1f2', glow: 'rgba(244, 63, 94, 0.40)' }
+      : { text: '#fda4af', grad: 'linear-gradient(90deg, #f43f5e 0%, #ec4899 55%, #fb7185 100%)', tip: '#ffffff', glow: 'rgba(244, 63, 94, 0.55)' };
+  }
+
+  function animeStarSvg(primary, secondary, size = 14) {
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" style="flex-shrink:0;">
+      <path d="M12 1.8 L14.5 9.5 L22.2 12 L14.5 14.5 L12 22.2 L9.5 14.5 L1.8 12 L9.5 9.5 Z" fill="${primary}" opacity="0.96"/>
+      <path d="M12 5.2 L13.4 10.6 L18.8 12 L13.4 13.4 L12 18.8 L10.6 13.4 L5.2 12 L10.6 10.6 Z" fill="#ffffff" opacity="0.82"/>
+      <path d="M19.2 3.2 L19.8 5.0 L21.6 5.6 L19.8 6.2 L19.2 8.0 L18.6 6.2 L16.8 5.6 L18.6 5.0 Z" fill="${secondary || primary}" opacity="0.95"/>
+    </svg>`;
+  }
+
+  function animeCornerOrnament(primary, secondary) {
+    return `
+      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" style="position:absolute;top:2px;left:2px;pointer-events:none;opacity:0.68;">
+        <path d="M2 13 L2 5 Q2 2 5 2 L13 2" stroke="${primary}" stroke-width="1.35" stroke-linecap="round"/>
+        <path d="M5.5 3.6 L6.1 5.1 L7.6 5.7 L6.1 6.3 L5.5 7.8 L4.9 6.3 L3.4 5.7 L4.9 5.1 Z" fill="${secondary || primary}"/>
+      </svg>
+      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" style="position:absolute;bottom:2px;right:2px;transform:rotate(180deg);pointer-events:none;opacity:0.55;">
+        <path d="M2 13 L2 5 Q2 2 5 2 L13 2" stroke="${secondary || primary}" stroke-width="1.25" stroke-linecap="round"/>
+        <circle cx="5.5" cy="5.5" r="1.2" fill="${primary}"/>
+      </svg>
+      <svg xmlns="http://www.w3.org/2000/svg" width="118" height="72" viewBox="0 0 118 72" fill="none" style="position:absolute;top:-6px;right:-6px;pointer-events:none;opacity:0.18;">
+        <path d="M18 66 Q62 18 116 14" stroke="${primary}" stroke-width="0.9" stroke-dasharray="2 3"/>
+        <path d="M36 70 Q76 30 116 28" stroke="${secondary || primary}" stroke-width="0.7"/>
+        <path d="M90 16 L91.8 20.6 L96.4 22.4 L91.8 24.2 L90 28.8 L88.2 24.2 L83.6 22.4 L88.2 20.6 Z" fill="${primary}"/>
+        <path d="M62 34 L63.1 36.8 L65.9 37.9 L63.1 39.0 L62 41.8 L60.9 39.0 L58.1 37.9 L60.9 36.8 Z" fill="${secondary || primary}"/>
+        <circle cx="104" cy="36" r="1.3" fill="${primary}"/>
+        <circle cx="76" cy="14" r="1" fill="${secondary || primary}"/>
+      </svg>
+    `;
+  }
+
+  function renderAnimeGaugeBar(pct, heightPx, isLight, mainTheme) {
+    const p = Math.min(100, Math.max(0, Number(pct) || 0));
+    const pal = animeBarPalette(p, isLight, mainTheme);
+    const trackBg = isLight ? 'rgba(15, 23, 42, 0.10)' : 'rgba(255, 255, 255, 0.08)';
+    const tickCol = isLight ? 'rgba(255, 255, 255, 0.72)' : 'rgba(5, 9, 20, 0.62)';
+    return `
+      <div style="position:relative;height:${heightPx}px;border-radius:999px;background:${trackBg};overflow:hidden;border:0.5px solid ${isLight ? 'rgba(15,23,42,0.10)' : 'rgba(255,255,255,0.12)'};box-shadow:inset 0 1px 2px rgba(0,0,0,${isLight ? '0.08' : '0.38'});">
+        <div style="position:relative;height:100%;width:${p}%;background:${pal.grad};border-radius:999px;box-shadow:0 0 8px ${pal.glow};transition:width 0.3s ease;">
+          <span style="position:absolute;inset:0;background:linear-gradient(180deg, rgba(255,255,255,0.44) 0%, rgba(255,255,255,0.0) 58%);border-radius:999px;pointer-events:none;"></span>
+          ${p >= 6 ? `<span style="position:absolute;right:1px;top:50%;transform:translateY(-50%);width:${Math.max(3.5, heightPx - 1.5)}px;height:${Math.max(3.5, heightPx - 1.5)}px;border-radius:999px;background:${pal.tip};box-shadow:0 0 6px ${pal.glow};"></span>` : ''}
+        </div>
+        <span style="position:absolute;left:25%;top:0;bottom:0;width:1px;background:${tickCol};pointer-events:none;"></span>
+        <span style="position:absolute;left:50%;top:0;bottom:0;width:1px;background:${tickCol};pointer-events:none;"></span>
+        <span style="position:absolute;left:75%;top:0;bottom:0;width:1px;background:${tickCol};pointer-events:none;"></span>
+      </div>
+    `;
   }
 
   function renderQuotaPopover(anchorEl) {
@@ -2319,7 +2394,7 @@
     if (!pop) {
       pop = document.createElement('div');
       pop.id = 'agy-quota-popover';
-      pop.style.cssText = 'position: fixed; z-index: 99998; width: 296px; border-radius: 13px; padding: 12px 14px; font-family: system-ui, -apple-system, sans-serif; color: #f4f4f5;';
+      pop.style.cssText = 'position: fixed; z-index: 99998; width: 296px; font-family: system-ui, -apple-system, sans-serif;';
       document.body.appendChild(pop);
 
       const onDocClick = (ev) => {
@@ -2338,7 +2413,7 @@
     updateQuotaPopoverContent(pop);
     pop.style.display = 'block';
     const rect = anchorEl.getBoundingClientRect();
-    const top = Math.min(window.innerHeight - 260, Math.round(rect.bottom + 6));
+    const top = Math.min(window.innerHeight - 255, Math.round(rect.bottom + 6));
     const left = Math.max(12, Math.min(window.innerWidth - 308, Math.round(rect.right - 296)));
     pop.style.top = top + 'px';
     pop.style.left = left + 'px';
@@ -2348,78 +2423,89 @@
     if (!pop) return;
     const st = getState();
     const mainTheme = THEMES[st.themeName] || THEMES[DEFAULT_THEME_KEY];
+    const isLight = Boolean(mainTheme.isLight);
+    const titleCol = isLight ? '#0f172a' : '#f8fafc';
+    const labelCol = isLight ? '#1e293b' : '#e4e4e7';
+    const mutedCol = isLight ? '#64748b' : '#94a3b8';
+    const panelBg = isLight ? 'rgba(15, 23, 42, 0.04)' : 'rgba(255, 255, 255, 0.04)';
+    const panelBorder = isLight ? 'rgba(15, 23, 42, 0.10)' : 'rgba(255, 255, 255, 0.09)';
     const cache = readQuotaCache();
+    const gem = getGeminiGroup(cache);
     const syncing = Boolean(window.__AGY_QUOTA_SYNCING__);
     const badge = cache && cache.plan ? shortPlanBadge(cache.plan) : '';
 
-    const rowsHtml = cache ? cache.groups.map((g) => {
-      const bars = [];
-      if (g.fiveHour) {
-        const c = quotaColor(g.fiveHour.pct, false);
-        const cd = formatCountdown(g.fiveHour.refreshAt);
-        bars.push(`
-          <div style="margin-top: 6px;">
-            <div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;margin-bottom:3px;">
-              <span style="color:#a1a1aa;">5-Hour Limit</span>
-              <span style="display:flex;align-items:center;gap:6px;">
-                ${cd ? `<span style="color:#94a3b8;font-size:10.5px;">↻ ${cd}</span>` : ''}
-                <strong style="color:${c};font-weight:600;">${g.fiveHour.pct}%</strong>
-              </span>
-            </div>
-            <div style="height:5px;border-radius:999px;background:rgba(255,255,255,0.09);overflow:hidden;">
-              <div style="height:100%;width:${g.fiveHour.pct}%;background:${c};border-radius:999px;"></div>
-            </div>
-          </div>
-        `);
-      }
-      if (g.weekly) {
-        const c = quotaColor(g.weekly.pct, false);
-        const cd = formatCountdown(g.weekly.refreshAt);
-        bars.push(`
-          <div style="margin-top: 6px;">
-            <div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;margin-bottom:3px;">
-              <span style="color:#a1a1aa;">Weekly Limit</span>
-              <span style="display:flex;align-items:center;gap:6px;">
-                ${cd ? `<span style="color:#94a3b8;font-size:10.5px;">↻ ${cd}</span>` : ''}
-                <strong style="color:${c};font-weight:600;">${g.weekly.pct}%</strong>
-              </span>
-            </div>
-            <div style="height:5px;border-radius:999px;background:rgba(255,255,255,0.09);overflow:hidden;">
-              <div style="height:100%;width:${g.weekly.pct}%;background:${c};border-radius:999px;"></div>
-            </div>
-          </div>
-        `);
-      }
-      return `
-        <div style="padding:8px 10px;border-radius:9px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.07);margin-top:8px;">
-          <div style="font-size:12px;font-weight:600;color:#f4f4f5;">${g.fullLabel}</div>
-          ${bars.join('')}
+    let gaugesHtml = '';
+    if (!gem) {
+      gaugesHtml = `
+        <div style="padding:16px 8px;text-align:center;font-size:12px;color:${mutedCol};line-height:1.5;">
+          Chưa đồng bộ năng lượng Gemini ✦<br/>Bấm <strong style="color:${mainTheme.primary};">Sync ngay</strong> để lấy hạn mức 5h &amp; 1 tuần.
         </div>
       `;
-    }).join('') : `
-      <div style="padding:14px 8px;text-align:center;font-size:12px;color:#a1a1aa;">
-        Chưa có dữ liệu quota.<br/>Bấm <strong>Sync ngay</strong> để lấy từ Settings → Models.
-      </div>
-    `;
+    } else {
+      const blocks = [];
+      if (gem.fiveHour) {
+        const pal = animeBarPalette(gem.fiveHour.pct, isLight, mainTheme);
+        const cd = formatCountdown(gem.fiveHour.refreshAt);
+        blocks.push(`
+          <div style="padding:9px 11px;border-radius:10px;background:${panelBg};border:1px solid ${panelBorder};margin-top:9px;">
+            <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;">
+              <span style="font-size:11px;font-weight:700;letter-spacing:0.45px;color:${labelCol};">
+                <span style="color:${mainTheme.primary};">✦</span> 5-HOUR ENERGY
+              </span>
+              <span style="display:flex;align-items:baseline;gap:6px;">
+                ${cd ? `<span style="font-size:10.5px;color:${mutedCol};">↻ ${cd}</span>` : ''}
+                <strong style="font-size:14.5px;color:${pal.text};font-variant-numeric:tabular-nums;">${gem.fiveHour.pct}%</strong>
+              </span>
+            </div>
+            ${renderAnimeGaugeBar(gem.fiveHour.pct, 7.5, isLight, mainTheme)}
+          </div>
+        `);
+      }
+      if (gem.weekly) {
+        const pal = animeBarPalette(gem.weekly.pct, isLight, mainTheme);
+        const cd = formatCountdown(gem.weekly.refreshAt);
+        blocks.push(`
+          <div style="padding:9px 11px;border-radius:10px;background:${panelBg};border:1px solid ${panelBorder};margin-top:8px;">
+            <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;">
+              <span style="font-size:11px;font-weight:700;letter-spacing:0.45px;color:${labelCol};">
+                <span style="color:${mainTheme.secondary || mainTheme.primary};">◈</span> 1-WEEK STARLIGHT
+              </span>
+              <span style="display:flex;align-items:baseline;gap:6px;">
+                ${cd ? `<span style="font-size:10.5px;color:${mutedCol};">↻ ${cd}</span>` : ''}
+                <strong style="font-size:14.5px;color:${pal.text};font-variant-numeric:tabular-nums;">${gem.weekly.pct}%</strong>
+              </span>
+            </div>
+            ${renderAnimeGaugeBar(gem.weekly.pct, 7.5, isLight, mainTheme)}
+          </div>
+        `);
+      }
+      gaugesHtml = blocks.join('');
+    }
 
     pop.innerHTML = `
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
-        <div style="display:flex;align-items:center;gap:6px;">
-          <span style="color:${mainTheme.primary};display:inline-flex;">${BOLT_ICON_SVG}</span>
-          <span style="font-size:13px;font-weight:600;color:#f4f4f5;">Model Quota</span>
-          ${badge ? `<span style="font-size:10px;padding:1px 6px;border-radius:999px;background:${mainTheme.glow};color:${mainTheme.primary};border:1px solid ${mainTheme.borderColor};font-weight:600;">${badge}</span>` : ''}
+      <div id="agy-quota-popover-inner">
+        ${animeCornerOrnament(mainTheme.primary, mainTheme.secondary)}
+        <div style="position:relative;z-index:1;">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding-left:2px;">
+            <div style="display:flex;align-items:center;gap:6px;">
+              ${animeStarSvg(mainTheme.primary, mainTheme.secondary, 15)}
+              <span style="font-size:12.5px;font-weight:750;letter-spacing:0.8px;color:${titleCol};">GEMINI QUOTA</span>
+              ${badge ? `<span style="font-size:9.5px;padding:1px 6px;border-radius:999px;background:${mainTheme.glow};color:${mainTheme.primary};border:1px solid ${mainTheme.borderColor};font-weight:700;letter-spacing:0.4px;">✦ ${badge.toUpperCase()}</span>` : ''}
+            </div>
+            <span style="font-size:10px;color:${mutedCol};">${cache ? formatAge(cache.syncedAt) : ''}</span>
+          </div>
+          <div style="height:1px;margin-top:7px;background:linear-gradient(90deg, ${mainTheme.borderColor} 0%, transparent 100%);"></div>
+          ${gaugesHtml}
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:11px;padding-top:9px;border-top:1px solid ${panelBorder};">
+            <button id="agy-quota-pop-sync" type="button" style="flex:1;display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:6px 10px;border-radius:8px;background:${mainTheme.glow};border:1px solid ${mainTheme.borderColor};color:${mainTheme.primary};font-size:11.5px;font-weight:650;cursor:pointer;">
+              <span class="${syncing ? 'agy-quota-spinning' : ''}" style="display:inline-flex;">${REFRESH_ICON_SVG}</span>
+              <span>${syncing ? 'Đang đồng bộ...' : 'Sync ngay'}</span>
+            </button>
+            <button id="agy-quota-pop-open" type="button" style="padding:6px 10px;border-radius:8px;background:${panelBg};border:1px solid ${panelBorder};color:${labelCol};font-size:11.5px;cursor:pointer;">
+              Models ↗
+            </button>
+          </div>
         </div>
-        <span style="font-size:10.5px;color:#71717a;">${cache ? formatAge(cache.syncedAt) : ''}</span>
-      </div>
-      ${rowsHtml}
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:10px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.08);">
-        <button id="agy-quota-pop-sync" type="button" style="flex:1;display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:5px 10px;border-radius:8px;background:${mainTheme.glow};border:1px solid ${mainTheme.borderColor};color:${mainTheme.primary};font-size:11.5px;font-weight:600;cursor:pointer;">
-          <span class="${syncing ? 'agy-quota-spinning' : ''}" style="display:inline-flex;">${REFRESH_ICON_SVG}</span>
-          <span>${syncing ? 'Đang đồng bộ...' : 'Sync ngay'}</span>
-        </button>
-        <button id="agy-quota-pop-open" type="button" style="padding:5px 10px;border-radius:8px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);color:#d4d4d8;font-size:11.5px;cursor:pointer;">
-          Models ↗
-        </button>
       </div>
     `;
 
@@ -2456,120 +2542,89 @@
       if (card) card.remove();
       card = document.createElement('div');
       card.id = 'agy-quota-sidebar-card';
-      card.style.cssText = 'border-radius: 10px; padding: 7px 9px; margin-bottom: 5px; font-family: system-ui, -apple-system, sans-serif; user-select: none;';
+      card.style.cssText = 'font-family: system-ui, -apple-system, sans-serif; user-select: none;';
       settingsBtn.parentElement.insertBefore(card, settingsBtn);
     }
 
     const mainTheme = THEMES[st.themeName] || THEMES[DEFAULT_THEME_KEY];
     const isLight = Boolean(mainTheme.isLight);
     const mutedCol = isLight ? '#475569' : '#94a3b8';
-    const trackBg = isLight ? 'rgba(15, 23, 42, 0.10)' : 'rgba(255, 255, 255, 0.09)';
     const cache = readQuotaCache();
+    const gem = getGeminiGroup(cache);
     const syncing = Boolean(window.__AGY_QUOTA_SYNCING__);
-    const expanded = localStorage.getItem(STORAGE_QUOTA_EXPANDED) === 'true';
     const badge = cache && cache.plan ? shortPlanBadge(cache.plan) : '';
-    const renderKey = `${st.themeName}|${isLight}|${syncing}|${expanded}|${cache ? cache.syncedAt : 0}|${Math.floor(Date.now() / 30000)}`;
+    const renderKey = `anime-v3|${st.themeName}|${isLight}|${syncing}|${cache ? cache.syncedAt : 0}|${Math.floor(Date.now() / 30000)}`;
     if (card.dataset.agyRenderKey === renderKey) return;
     card.dataset.agyRenderKey = renderKey;
 
     let bodyHtml = '';
-    if (!cache) {
+    if (!gem) {
       bodyHtml = `
-        <button id="agy-quota-sb-init" type="button" style="width:100%;margin-top:6px;padding:5px 8px;border-radius:7px;background:${mainTheme.glow};border:1px solid ${mainTheme.borderColor};color:${mainTheme.primary};font-size:11px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px;">
+        <button id="agy-quota-sb-init" type="button" style="width:100%;margin-top:7px;padding:6px 8px;border-radius:8px;background:${mainTheme.glow};border:1px solid ${mainTheme.borderColor};color:${mainTheme.primary};font-size:11px;font-weight:650;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px;">
           <span class="${syncing ? 'agy-quota-spinning' : ''}" style="display:inline-flex;">${REFRESH_ICON_SVG}</span>
-          <span>${syncing ? 'Đang lấy quota...' : 'Bấm để sync Quota'}</span>
+          <span>${syncing ? 'Đang lấy quota...' : '✦ Sync Gemini Quota'}</span>
         </button>
       `;
     } else {
-      bodyHtml = cache.groups.map((g) => {
-        const s = getGroupSummary(g);
-        const col = quotaColor(s.minPct, isLight);
-        const tip = [
-          g.fiveHour ? `5h: ${g.fiveHour.pct}%${g.fiveHour.refreshAt ? ' (reset ' + formatCountdown(g.fiveHour.refreshAt) + ')' : ''}` : '',
-          g.weekly ? `Weekly: ${g.weekly.pct}%${g.weekly.refreshAt ? ' (reset ' + formatCountdown(g.weekly.refreshAt) + ')' : ''}` : ''
-        ].filter(Boolean).join(' • ');
+      const h = gem.fiveHour;
+      const w = gem.weekly;
+      const hPal = h ? animeBarPalette(h.pct, isLight, mainTheme) : null;
+      const wPal = w ? animeBarPalette(w.pct, isLight, mainTheme) : null;
+      const hCd = h ? formatCountdown(h.refreshAt) : '';
+      const wCd = w ? formatCountdown(w.refreshAt) : '';
 
-        if (!expanded) {
-          return `
-            <div title="${tip}" style="margin-top:6px;">
-              <div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;line-height:1.25;margin-bottom:3px;">
-                <span style="font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${g.label}</span>
-                <span style="display:flex;align-items:center;gap:5px;flex-shrink:0;">
-                  ${s.timer ? `<span style="font-size:10px;color:${mutedCol};">${s.timer}</span>` : ''}
-                  <strong style="color:${col};font-weight:650;">${s.minPct}%</strong>
-                </span>
-              </div>
-              <div style="height:4px;border-radius:999px;background:${trackBg};overflow:hidden;">
-                <div style="height:100%;width:${s.minPct}%;background:${col};border-radius:999px;"></div>
-              </div>
-            </div>
-          `;
-        }
-
-        const subBars = [];
-        if (g.fiveHour) {
-          const c5 = quotaColor(g.fiveHour.pct, isLight);
-          const t5 = formatCountdown(g.fiveHour.refreshAt);
-          subBars.push(`
-            <div style="margin-top:4px;">
-              <div style="display:flex;justify-content:space-between;font-size:10px;color:${mutedCol};margin-bottom:2px;">
-                <span>5h${t5 ? ' · ' + t5 : ''}</span>
-                <strong style="color:${c5};">${g.fiveHour.pct}%</strong>
-              </div>
-              <div style="height:3.5px;border-radius:999px;background:${trackBg};overflow:hidden;">
-                <div style="height:100%;width:${g.fiveHour.pct}%;background:${c5};border-radius:999px;"></div>
-              </div>
-            </div>
-          `);
-        }
-        if (g.weekly) {
-          const cw = quotaColor(g.weekly.pct, isLight);
-          const tw = formatCountdown(g.weekly.refreshAt);
-          subBars.push(`
-            <div style="margin-top:4px;">
-              <div style="display:flex;justify-content:space-between;font-size:10px;color:${mutedCol};margin-bottom:2px;">
-                <span>Tuần${tw ? ' · ' + tw : ''}</span>
-                <strong style="color:${cw};">${g.weekly.pct}%</strong>
-              </div>
-              <div style="height:3.5px;border-radius:999px;background:${trackBg};overflow:hidden;">
-                <div style="height:100%;width:${g.weekly.pct}%;background:${cw};border-radius:999px;"></div>
-              </div>
-            </div>
-          `);
-        }
-        return `
-          <div style="margin-top:7px;padding-top:5px;border-top:1px solid ${isLight ? 'rgba(15,23,42,0.08)' : 'rgba(255,255,255,0.07)'};">
-            <div style="font-size:11px;font-weight:600;">${g.label}</div>
-            ${subBars.join('')}
+      bodyHtml = `
+        ${h ? `
+        <div title="Gemini 5-Hour Limit: ${h.pct}%${hCd ? ' • Reset sau ' + hCd : ''}" style="margin-top:7px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;font-size:10.5px;line-height:1.2;margin-bottom:4px;">
+            <span style="display:inline-flex;align-items:center;gap:4px;font-weight:700;letter-spacing:0.35px;">
+              <span style="color:${mainTheme.primary};font-size:9.5px;">✦</span>
+              <span>5H</span>
+              ${hCd ? `<span style="font-size:9.5px;font-weight:500;color:${mutedCol};padding:0.5px 5px;border-radius:999px;background:${isLight ? 'rgba(15,23,42,0.06)' : 'rgba(255,255,255,0.07)'};">${hCd}</span>` : ''}
+            </span>
+            <strong style="color:${hPal.text};font-size:11.5px;font-weight:750;font-variant-numeric:tabular-nums;">${h.pct}%</strong>
           </div>
-        `;
-      }).join('');
-
-      if (expanded) {
-        bodyHtml += `
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:7px;padding-top:5px;border-top:1px solid ${isLight ? 'rgba(15,23,42,0.08)' : 'rgba(255,255,255,0.07)'};font-size:10px;color:${mutedCol};">
-            <span>Cập nhật ${formatAge(cache.syncedAt)}</span>
-            <button id="agy-quota-sb-models" type="button" style="background:transparent;border:none;color:${mainTheme.primary};font-size:10.5px;cursor:pointer;padding:0;font-weight:500;">Models ↗</button>
+          ${renderAnimeGaugeBar(h.pct, 6, isLight, mainTheme)}
+        </div>
+        ` : ''}
+        ${w ? `
+        <div title="Gemini Weekly Limit: ${w.pct}%${wCd ? ' • Reset sau ' + wCd : ''}" style="margin-top:7px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;font-size:10.5px;line-height:1.2;margin-bottom:4px;">
+            <span style="display:inline-flex;align-items:center;gap:4px;font-weight:700;letter-spacing:0.35px;">
+              <span style="color:${mainTheme.secondary || mainTheme.primary};font-size:9.5px;">◈</span>
+              <span>1W</span>
+              ${wCd ? `<span style="font-size:9.5px;font-weight:500;color:${mutedCol};padding:0.5px 5px;border-radius:999px;background:${isLight ? 'rgba(15,23,42,0.06)' : 'rgba(255,255,255,0.07)'};">${wCd}</span>` : ''}
+            </span>
+            <strong style="color:${wPal.text};font-size:11.5px;font-weight:750;font-variant-numeric:tabular-nums;">${w.pct}%</strong>
           </div>
-        `;
-      }
+          ${renderAnimeGaugeBar(w.pct, 6, isLight, mainTheme)}
+        </div>
+        ` : ''}
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:7px;padding-top:5px;border-top:1px solid ${isLight ? 'rgba(15,23,42,0.08)' : 'rgba(255,255,255,0.08)'};font-size:9.5px;color:${mutedCol};">
+          <span>✦ ${formatAge(cache.syncedAt)}</span>
+          <button id="agy-quota-sb-models" type="button" style="background:transparent;border:none;color:${mainTheme.primary};font-size:10px;font-weight:650;cursor:pointer;padding:0;">Models ↗</button>
+        </div>
+      `;
     }
 
     card.innerHTML = `
-      <div id="agy-quota-sb-head" style="display:flex;justify-content:space-between;align-items:center;gap:4px;cursor:pointer;">
-        <div style="display:flex;align-items:center;gap:5px;min-width:0;">
-          <span style="color:${mainTheme.primary};display:inline-flex;flex-shrink:0;">${BOLT_ICON_SVG}</span>
-          <span style="font-size:11.5px;font-weight:650;letter-spacing:0.1px;">Quota</span>
-          ${badge ? `<span style="font-size:9.5px;padding:0.5px 5px;border-radius:999px;background:${mainTheme.glow};color:${mainTheme.primary};border:1px solid ${mainTheme.borderColor};font-weight:600;">${badge}</span>` : ''}
-        </div>
-        <div style="display:flex;align-items:center;gap:4px;flex-shrink:0;">
-          <button id="agy-quota-sb-sync" type="button" title="Đồng bộ Quota từ Settings → Models" style="background:transparent;border:none;color:${mutedCol};cursor:pointer;padding:2px;display:inline-flex;align-items:center;border-radius:4px;">
-            <span class="${syncing ? 'agy-quota-spinning' : ''}" style="display:inline-flex;">${REFRESH_ICON_SVG}</span>
-          </button>
-          <span style="font-size:10px;color:${mutedCol};padding:0 1px;">${expanded ? '▴' : '▾'}</span>
+      <div id="agy-quota-sidebar-inner">
+        ${animeCornerOrnament(mainTheme.primary, mainTheme.secondary)}
+        <div style="position:relative;z-index:1;">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:4px;padding-left:2px;">
+            <div style="display:flex;align-items:center;gap:5px;min-width:0;">
+              ${animeStarSvg(mainTheme.primary, mainTheme.secondary, 13)}
+              <span style="font-size:11px;font-weight:750;letter-spacing:0.85px;">GEMINI</span>
+              ${badge ? `<span style="font-size:9px;padding:0.5px 5.5px;border-radius:999px;background:${mainTheme.glow};color:${mainTheme.primary};border:1px solid ${mainTheme.borderColor};font-weight:700;letter-spacing:0.4px;">✦ ${badge.toUpperCase()}</span>` : ''}
+            </div>
+            <button id="agy-quota-sb-sync" type="button" title="Đồng bộ Gemini Quota (5h & 1w)" style="background:transparent;border:none;color:${mutedCol};cursor:pointer;padding:3px;display:inline-flex;align-items:center;justify-content:center;border-radius:999px;transition:all 0.15s ease;">
+              <span class="${syncing ? 'agy-quota-spinning' : ''}" style="display:inline-flex;">${REFRESH_ICON_SVG}</span>
+            </button>
+          </div>
+          <div style="height:1px;margin-top:4px;background:linear-gradient(90deg, ${mainTheme.borderColor} 0%, transparent 92%);"></div>
+          ${bodyHtml}
         </div>
       </div>
-      <div id="agy-quota-sb-body" style="cursor:pointer;">${bodyHtml}</div>
     `;
 
     const syncBtn = card.querySelector('#agy-quota-sb-sync');
@@ -2593,18 +2648,6 @@
         syncQuotaFromSettingsUI(true);
       });
     }
-    const toggleExpand = () => {
-      if (!readQuotaCache()) {
-        syncQuotaFromSettingsUI(false);
-        return;
-      }
-      localStorage.setItem(STORAGE_QUOTA_EXPANDED, expanded ? 'false' : 'true');
-      injectOrUpdateSidebarQuotaCard();
-    };
-    const head = card.querySelector('#agy-quota-sb-head');
-    const body = card.querySelector('#agy-quota-sb-body');
-    if (head) head.addEventListener('click', toggleExpand);
-    if (body) body.addEventListener('click', toggleExpand);
   }
 
   function injectOrUpdateTitlebarQuotaPill() {
@@ -2626,7 +2669,7 @@
       pill = document.createElement('button');
       pill.id = 'agy-quota-titlebar-pill';
       pill.type = 'button';
-      pill.style.cssText = 'display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 9px; margin-right: 6px; border-radius: 9999px; font-size: 11px; font-weight: 550; cursor: pointer; white-space: nowrap; -webkit-app-region: no-drag; font-family: system-ui, -apple-system, sans-serif; transition: border-color 0.15s ease, background-color 0.15s ease;';
+      pill.style.cssText = 'display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; margin-right: 6px; border-radius: 9999px; font-size: 11px; font-weight: 600; cursor: pointer; white-space: nowrap; -webkit-app-region: no-drag; font-family: system-ui, -apple-system, sans-serif; transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;';
       pill.addEventListener('click', (e) => {
         e.stopPropagation();
         renderQuotaPopover(pill);
@@ -2637,36 +2680,34 @@
     const mainTheme = THEMES[st.themeName] || THEMES[DEFAULT_THEME_KEY];
     const isLight = Boolean(mainTheme.isLight);
     const cache = readQuotaCache();
+    const gem = getGeminiGroup(cache);
     const syncing = Boolean(window.__AGY_QUOTA_SYNCING__);
-    const pillKey = `${st.themeName}|${isLight}|${syncing}|${cache ? cache.syncedAt : 0}|${Math.floor(Date.now() / 30000)}`;
+    const pillKey = `anime-v3|${st.themeName}|${isLight}|${syncing}|${cache ? cache.syncedAt : 0}|${Math.floor(Date.now() / 30000)}`;
     if (pill.dataset.agyRenderKey === pillKey) return;
     pill.dataset.agyRenderKey = pillKey;
 
-    if (!cache) {
-      pill.title = 'Bấm để xem hoặc đồng bộ Model Quota';
+    if (!gem) {
+      pill.title = 'Bấm để xem hoặc đồng bộ Gemini Quota';
       pill.innerHTML = `
-        <span class="${syncing ? 'agy-quota-spinning' : ''}" style="color:${mainTheme.primary};display:inline-flex;">${syncing ? REFRESH_ICON_SVG : BOLT_ICON_SVG}</span>
-        <span>${syncing ? 'Sync...' : 'Quota'}</span>
+        <span class="${syncing ? 'agy-quota-spinning' : ''}" style="display:inline-flex;">${syncing ? REFRESH_ICON_SVG : animeStarSvg(mainTheme.primary, mainTheme.secondary, 12)}</span>
+        <span style="letter-spacing:0.3px;">${syncing ? 'Sync...' : 'Gemini'}</span>
       `;
       return;
     }
 
-    let overallMin = 100;
-    let urgentTimer = '';
-    const parts = cache.groups.slice(0, 2).map((g) => {
-      const s = getGroupSummary(g);
-      if (s.minPct < overallMin) overallMin = s.minPct;
-      if (!urgentTimer && s.timer) urgentTimer = s.timer;
-      const col = quotaColor(s.minPct, isLight);
-      return `<span style="display:inline-flex;align-items:center;gap:2px;"><span style="opacity:0.75;">${g.tag}</span><strong style="color:${col};font-weight:650;">${s.minPct}%</strong></span>`;
-    });
+    const h = gem.fiveHour;
+    const w = gem.weekly;
+    const hCol = h ? animeBarPalette(h.pct, isLight, mainTheme).text : '#94a3b8';
+    const wCol = w ? animeBarPalette(w.pct, isLight, mainTheme).text : '#94a3b8';
+    const hCd = h ? formatCountdown(h.refreshAt) : '';
 
-    const dotCol = quotaColor(overallMin, isLight);
-    pill.title = `Model Quota (${cache.plan || 'Antigravity'}) • Cập nhật ${formatAge(cache.syncedAt)} — Bấm để xem chi tiết`;
+    pill.title = `Gemini Quota (${cache.plan || 'Antigravity'}) • 5h: ${h ? h.pct + '%' : '-'} • 1w: ${w ? w.pct + '%' : '-'} • Cập nhật ${formatAge(cache.syncedAt)}`;
     pill.innerHTML = `
-      <span style="width:6px;height:6px;border-radius:999px;background:${dotCol};flex-shrink:0;"></span>
-      ${parts.join('<span style="opacity:0.35;">·</span>')}
-      ${urgentTimer ? `<span style="opacity:0.65;font-size:10px;margin-left:1px;">${urgentTimer}</span>` : ''}
+      ${animeStarSvg(mainTheme.primary, mainTheme.secondary, 12)}
+      ${h ? `<span style="display:inline-flex;align-items:center;gap:3px;"><span style="opacity:0.68;font-size:10px;letter-spacing:0.25px;">5H</span><strong style="color:${hCol};font-variant-numeric:tabular-nums;">${h.pct}%</strong></span>` : ''}
+      ${h && w ? `<span style="color:${mainTheme.primary};opacity:0.8;font-size:8px;">◆</span>` : ''}
+      ${w ? `<span style="display:inline-flex;align-items:center;gap:3px;"><span style="opacity:0.68;font-size:10px;letter-spacing:0.25px;">1W</span><strong style="color:${wCol};font-variant-numeric:tabular-nums;">${w.pct}%</strong></span>` : ''}
+      ${hCd ? `<span style="opacity:0.68;font-size:10px;padding-left:4px;border-left:1px solid ${isLight ? 'rgba(15,23,42,0.16)' : 'rgba(255,255,255,0.18)'};">${hCd}</span>` : ''}
     `;
   }
 

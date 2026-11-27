@@ -25,7 +25,7 @@ Ngoài việc viết lại toàn bộ backend/CLI/daemon bằng Rust, `engine/co
 - **Tự động nén ảnh nền custom upload (max 2560px WebP)**: Không còn làm tràn `localStorage` hay phình to `theme_config.json` khi upload ảnh PNG 4K.
 - **Cắt reflow layout khi AI đang stream**: `MutationObserver` chỉ tính lại `getBoundingClientRect()` khi kích thước đổi (`ResizeObserver`) hoặc trạng thái browser hole/side panel thay đổi, không ép layout reflow 60 lần/giây khi AI stream chữ.
 - **Chống rò rỉ DOM listener**: Gắn listener `keydown` của modal với `AbortController.signal` để dọn sạch hoàn toàn khi hot-reload hoặc uninstall.
-- **Model Quota HUD ngoài màn hình chính**: Hiển thị hạn mức Gemini / Claude & GPT (5h + Weekly) cùng đồng hồ đếm ngược reset trực tiếp tại **Card ở đáy Sidebar** (ngay trên nút Settings) và **Pill mini trên Titlebar** (kèm popover chi tiết & nút **↻ Sync 1-click** thuần UI/DOM từ `Settings → Models`, bật/tắt độc lập trong Custom Theme Studio, 0 live blur, 0 chọc API nội bộ).
+- **Gemini Quota HUD phong cách Anime ngoài màn hình chính**: Chỉ tập trung hiển thị **Gemini 5H & 1W** với khung viền gradient kép, hoạ tiết ngôi sao 4 cánh góc khung & thanh năng lượng chia vạch tinh thể tại **Card đáy Sidebar** (ngay trên nút Settings) và **Pill trên Titlebar** (kèm popover chi tiết & nút **↻ Sync 1-click** thuần UI/DOM từ `Settings → Models`, bật/tắt độc lập trong Custom Theme Studio, 0 live blur, 0 chọc API nội bộ).
 
 ## Preset đi kèm sẵn (`themes/themes.json`)
 
