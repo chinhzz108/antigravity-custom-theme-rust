@@ -27,13 +27,21 @@ Ngoài việc viết lại toàn bộ backend/CLI/daemon bằng Rust, `engine/co
 - **Chống rò rỉ DOM listener**: Gắn listener `keydown` của modal với `AbortController.signal` để dọn sạch hoàn toàn khi hot-reload hoặc uninstall.
 - **Gemini Quota HUD phong cách Anime ngoài màn hình chính**: Chỉ tập trung hiển thị **Gemini 5H & 1W** với khung viền gradient kép, hoạ tiết ngôi sao 4 cánh góc khung & thanh năng lượng chia vạch tinh thể tại **Card đáy Sidebar** (ngay trên nút Settings) và **Pill trên Titlebar** (kèm popover chi tiết & nút **↻ Sync 1-click** thuần UI/DOM từ `Settings → Models`, bật/tắt độc lập trong Custom Theme Studio, 0 live blur, 0 chọc API nội bộ).
 
-## Preset đi kèm sẵn (`themes/themes.json`)
+## Preset đi kèm sẵn (`themes/themes.json` — 13 Presets)
 
 1. **`WLOP Cosmic`** *(mặc định)* — Hình nền 2K starlight + SVG flourish + Unified L-Glass
-2. **`Midnight Obsidian`** — Pure-CSS gradient tím/xanh siêu nhẹ (0 ảnh)
-3. **`Cyber Neon Pulse`** — Pure-CSS cyberpunk cyan/magenta phát sáng (0 ảnh)
-4. **`Ember Crimson`** — Pure-CSS obsidian ấm + cam/đỏ hổ phách (0 ảnh)
-5. **`Kyoto Matcha Light`** — Chế độ **Light Glass (`isLight: true`)** ban ngày chữ đậm dễ đọc (0 ảnh)
+2. **`Itachi Blood Moon`** — Ảnh 2K Itachi ANBU trước trăng máu bốc lửa + Sharingan ornament
+3. **`Itachi Night Sharingan`** — Ảnh 2K Itachi góc nghiêng đêm mưa + mắt Sharingan đỏ rực
+4. **`Itachi Mangekyou Crows`** — Ảnh 2K cận cảnh Mangekyou Sharingan & lông quạ ánh trăng
+5. **`Itachi Crimson Art`** — Ảnh 2K tranh sơn dầu đỏ rực Itachi Uchiha phong cách painterly
+6. **`Kakashi Chidori Storm`** — Ảnh 2K Kakashi bão tối tung tia sét Chidori xanh điện
+7. **`Kakashi Kamui Sharingan`** — Ảnh 2K Kakashi kéo băng trán cùng nền Mangekyou Kamui đỏ
+8. **`Kakashi ANBU Shadow`** — Ảnh 2K Kakashi ANBU bóng tối + con mắt Sharingan lớn
+9. **`Kakashi Neon Sensei`** — Ảnh 2K lineart cyan tối giản Kakashi & Pakkun siêu sạch cho dev
+10. **`Midnight Obsidian`** — Pure-CSS gradient tím/xanh siêu nhẹ (0 ảnh)
+11. **`Cyber Neon Pulse`** — Pure-CSS cyberpunk cyan/magenta phát sáng (0 ảnh)
+12. **`Ember Crimson`** — Pure-CSS obsidian ấm + cam/đỏ hổ phách (0 ảnh)
+13. **`Kyoto Matcha Light`** — Chế độ **Light Glass (`isLight: true`)** ban ngày chữ đậm dễ đọc (0 ảnh)
 
 ## Hướng dẫn cài đặt & sử dụng nhanh (Windows)
 
