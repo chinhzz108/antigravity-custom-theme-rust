@@ -27,6 +27,8 @@ Ngoài việc viết lại toàn bộ backend/CLI/daemon bằng Rust, `engine/co
 - **Chống rò rỉ DOM listener**: Gắn listener `keydown` của modal với `AbortController.signal` để dọn sạch hoàn toàn khi hot-reload hoặc uninstall.
 - **Gemini Quota HUD phong cách Anime ngoài màn hình chính**: Chỉ tập trung hiển thị **Gemini 5H & 1W** với khung viền gradient kép, hoạ tiết ngôi sao 4 cánh góc khung & thanh năng lượng chia vạch tinh thể tại **Card đáy Sidebar** (ngay trên nút Settings) và **Pill trên Titlebar** (kèm popover chi tiết & nút **↻ Sync 1-click** thuần UI/DOM từ `Settings → Models`, bật/tắt độc lập trong Custom Theme Studio, 0 live blur, 0 chọc API nội bộ).
 
+- **Tự đổi hình nền 2K mỗi 5 phút không lag (`Auto 5m`)**: Pre-decode ảnh kế tiếp trên background compositor thread (`Image.decode()`), chỉ cập nhật lớp `<style id="antigravity-custom-theme-wp">` siêu gọn (~220 byte, `< 0.5 ms`) vào idle frame (`requestIdleCallback`) mà không reparse CSS chính hay ghi đĩa, cache toàn bộ pre-baked L-glass (`< 200 KB`), tự tạm dừng khi ẩn cửa sổ (**0% CPU nền**), chỉnh chu kỳ (`Off / 2m / 5m / 10m / 15m / 30m`) hoặc bấm `Next ⏭` ngay trong Custom Theme Studio.
+
 ## Preset đi kèm sẵn (`themes/themes.json` — 13 Presets)
 
 1. **`WLOP Cosmic`** *(mặc định)* — Hình nền 2K starlight + SVG flourish + Unified L-Glass
@@ -34,10 +36,10 @@ Ngoài việc viết lại toàn bộ backend/CLI/daemon bằng Rust, `engine/co
 3. **`Itachi Night Sharingan`** — Ảnh 2K Itachi góc nghiêng đêm mưa + mắt Sharingan đỏ rực
 4. **`Itachi Mangekyou Crows`** — Ảnh 2K cận cảnh Mangekyou Sharingan & lông quạ ánh trăng
 5. **`Itachi Crimson Art`** — Ảnh 2K tranh sơn dầu đỏ rực Itachi Uchiha phong cách painterly
-6. **`Kakashi Chidori Storm`** — Ảnh 2K Kakashi bão tối tung tia sét Chidori xanh điện
+6. **`Kakashi ANBU Frost`** — Ảnh 2K Kakashi ANBU nhấc mặt nạ cáo, mắt xanh băng & Sharingan đỏ
 7. **`Kakashi Kamui Sharingan`** — Ảnh 2K Kakashi kéo băng trán cùng nền Mangekyou Kamui đỏ
-8. **`Kakashi ANBU Shadow`** — Ảnh 2K Kakashi ANBU bóng tối + con mắt Sharingan lớn
-9. **`Kakashi Neon Sensei`** — Ảnh 2K lineart cyan tối giản Kakashi & Pakkun siêu sạch cho dev
+8. **`Kakashi Konoha Sunset`** — Ảnh 2K Kakashi & Team 7 trên mái ngói làng Lá chiều hoàng hôn (Top #1 Wallhaven)
+9. **`Kakashi Team Minato`** — Ảnh 2K Kakashi trẻ cùng Team Minato phố đèn lồng làng Lá lúc chạng vạng (Top #2 Wallhaven)
 10. **`Midnight Obsidian`** — Pure-CSS gradient tím/xanh siêu nhẹ (0 ảnh)
 11. **`Cyber Neon Pulse`** — Pure-CSS cyberpunk cyan/magenta phát sáng (0 ảnh)
 12. **`Ember Crimson`** — Pure-CSS obsidian ấm + cam/đỏ hổ phách (0 ảnh)

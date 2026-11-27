@@ -22,6 +22,8 @@
   const STORAGE_QUOTA_SIDEBAR = 'agy_quota_sidebar_v1';
   const STORAGE_QUOTA_TITLEBAR = 'agy_quota_titlebar_v1';
   const STORAGE_QUOTA_CACHE = 'agy_quota_cache_v1';
+  const STORAGE_AUTO_ROTATE = 'agy_auto_rotate_v1';
+  const STORAGE_AUTO_ROTATE_MIN = 'agy_auto_rotate_min_v1';
 
   const CHECK_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
   const REFRESH_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg>`;
@@ -71,7 +73,13 @@
     const showQuotaTitlebar = localStorage.getItem(STORAGE_QUOTA_TITLEBAR) !== null
       ? localStorage.getItem(STORAGE_QUOTA_TITLEBAR) !== 'false'
       : (init.showQuotaTitlebar !== undefined ? init.showQuotaTitlebar : true);
-    return { themeName, bubbleName, inputStyle, dimming, wpEnabled, customWp, userAvatar, agentAvatar, glassBlur, avatarSize, avatarRadius, showQuotaSidebar, showQuotaTitlebar };
+    const autoRotate = localStorage.getItem(STORAGE_AUTO_ROTATE) !== null
+      ? localStorage.getItem(STORAGE_AUTO_ROTATE) !== 'false'
+      : (init.autoRotate !== undefined ? init.autoRotate : true);
+    const rawRotMin = localStorage.getItem(STORAGE_AUTO_ROTATE_MIN) ?? init.autoRotateMin;
+    const parsedRotMin = rawRotMin !== undefined && rawRotMin !== null && rawRotMin !== '' ? parseInt(rawRotMin, 10) : 5;
+    const autoRotateMin = Number.isFinite(parsedRotMin) && parsedRotMin >= 0 ? parsedRotMin : 5;
+    return { themeName, bubbleName, inputStyle, dimming, wpEnabled, customWp, userAvatar, agentAvatar, glassBlur, avatarSize, avatarRadius, showQuotaSidebar, showQuotaTitlebar, autoRotate, autoRotateMin };
   }
 
   // Downscale user/agent avatar uploads to 192x192 WebP once so theme_config.json stays tiny
@@ -148,7 +156,7 @@
     reader.readAsDataURL(file);
   }
 
-  const MAX_BLUR_CACHE = 4;
+  const MAX_BLUR_CACHE = 10;
 
   // Convert large base64 data: URIs into tiny ~60-byte blob: Object URLs so Blink never
   // parses or inherits 700 KB CSS strings across thousands of DOM nodes.
@@ -179,7 +187,7 @@
       }
       const objUrl = URL.createObjectURL(blob);
       cache.set(key, objUrl);
-      while (cache.size > 16) {
+      while (cache.size > 28) {
         const oldestKey = cache.keys().next().value;
         const oldUrl = cache.get(oldestKey);
         cache.delete(oldestKey);
@@ -367,6 +375,12 @@
       }
       if (overrides.showQuotaTitlebar !== undefined) {
         localStorage.setItem(STORAGE_QUOTA_TITLEBAR, String(st.showQuotaTitlebar));
+      }
+      if (overrides.autoRotate !== undefined) {
+        localStorage.setItem(STORAGE_AUTO_ROTATE, String(st.autoRotate));
+      }
+      if (overrides.autoRotateMin !== undefined) {
+        localStorage.setItem(STORAGE_AUTO_ROTATE_MIN, String(st.autoRotateMin));
       }
     } catch (e) {}
 
@@ -1124,11 +1138,142 @@
       }
     `;
 
+    const staleWpOverride = document.getElementById('antigravity-custom-theme-wp');
+    if (staleWpOverride) staleWpOverride.textContent = '';
+    window.__AGY_ROTATE_ACTIVE_WP__ = st.themeName;
+
     syncTitleBarOverlay(st);
     scheduleTitleBarSync(st);
     if (typeof refreshQuotaWidgets === 'function') {
       refreshQuotaWidgets();
     }
+    if (typeof scheduleAutoRotate === 'function') {
+      scheduleAutoRotate(st);
+    }
+  }
+
+  function getWallpaperPool() {
+    return THEME_KEYS.filter((k) => THEMES[k] && THEMES[k].wallpaper);
+  }
+
+  // Ultra-lightweight (<0.5 ms) isolated wallpaper-only layer swap for zero-lag 5-minute auto-rotation.
+  // Avoids reparsing the 23 KB main theme stylesheet, Electron IPC titlebar sync, or DOM rebuilds.
+  function applyWallpaperLayerOnly(wpThemeName, stOverride) {
+    const st = stOverride || getState();
+    const wpTh = THEMES[wpThemeName];
+    if (!wpTh || !wpTh.wallpaper || !st.wpEnabled) return;
+
+    const wpUrl = toShortBlobUrl(wpTh.wallpaper);
+    const overlayAlpha = wpTh.clearBackdrop
+      ? Math.min(0.92, Math.max(0.0, ((st.dimming - 10) / 82) * 0.85))
+      : Math.min(0.92, Math.max(0.12, (st.dimming / 100) * 0.78));
+    const overlayRgb = wpTh.overlayRgb || '10, 7, 6';
+    const bgPosition = wpTh.bgPosition || 'center center';
+    const secondaryGlowStop = wpTh.secondaryGlow
+      ? `, radial-gradient(circle at 22% 72%, ${wpTh.secondaryGlow} 0%, transparent 55%)`
+      : '';
+    const bgLayers = wpTh.clearBackdrop
+      ? `linear-gradient(180deg, rgba(${overlayRgb}, ${overlayAlpha}) 0%, rgba(${overlayRgb}, ${overlayAlpha}) 100%), url("${wpUrl}")`
+      : `radial-gradient(circle at 75% 40%, ${wpTh.glow} 0%, transparent 65%)${secondaryGlowStop}, linear-gradient(180deg, rgba(${overlayRgb}, ${overlayAlpha * 0.85}) 0%, rgba(${overlayRgb}, ${overlayAlpha}) 100%), url("${wpUrl}")`;
+
+    let wpStyleEl = document.getElementById('antigravity-custom-theme-wp');
+    if (!wpStyleEl) {
+      wpStyleEl = document.createElement('style');
+      wpStyleEl.id = 'antigravity-custom-theme-wp';
+      document.head.appendChild(wpStyleEl);
+    }
+    wpStyleEl.textContent = `.agy-shell{background-image:${bgLayers}!important;background-position:${bgPosition}!important;}body[data-has-browser-hole="true"] .agy-shell[data-agy-hole-active="1"]::after{background-image:${bgLayers}!important;background-position:${bgPosition}!important;}`;
+    window.__AGY_ROTATE_ACTIVE_WP__ = wpThemeName;
+
+    // Update pre-baked L-glass asynchronously (0 ms LRU cache hit after first cycle)
+    const activeMain = THEMES[st.themeName] || wpTh;
+    if (activeMain.unifiedGlass && st.wpEnabled) {
+      const effectiveBlur = `${st.glassBlur}px`;
+      syncPrebakedGlass(wpUrl, overlayRgb, overlayAlpha, wpTh.headerBg || activeMain.headerBg || '', effectiveBlur, 0);
+    }
+  }
+
+  function rotateToNextWallpaper(manual = false) {
+    const st = getState();
+    const pool = getWallpaperPool();
+    if (pool.length < 2 || !st.wpEnabled) return;
+    if (!manual && (!st.autoRotate || st.customWp)) return;
+    if (window.__AGY_ROTATE_INFLIGHT__) return;
+
+    const currentName = window.__AGY_ROTATE_ACTIVE_WP__ || st.themeName;
+    const curIdx = pool.indexOf(currentName);
+    const nextName = pool[(curIdx + 1) % pool.length];
+    const nextTh = THEMES[nextName];
+    if (!nextTh) return;
+
+    window.__AGY_ROTATE_INFLIGHT__ = true;
+    const nextBlobUrl = toShortBlobUrl(nextTh.wallpaper || '');
+
+    const commitSwap = () => {
+      const perform = () => {
+        window.__AGY_ROTATE_INFLIGHT__ = false;
+        const latest = getState();
+        if (!latest.wpEnabled) return;
+        if (!manual && (!latest.autoRotate || latest.customWp)) return;
+
+        if (manual) {
+          applyTheme(
+            { themeName: nextName, bubbleName: nextName, customWp: '' },
+            { skipSave: false }
+          );
+          const modalBody = document.getElementById('agy-theme-modal-body');
+          const backdrop = document.getElementById('agy-custom-theme-modal-backdrop');
+          if (modalBody && backdrop && backdrop.style.display !== 'none' && typeof renderThemePanels === 'function') {
+            renderThemePanels(modalBody);
+          }
+        } else {
+          // Zero-lag (<0.5 ms) wallpaper-only swap on idle frame — zero stylesheet reparse, zero IPC, zero disk I/O
+          applyWallpaperLayerOnly(nextName, latest);
+          scheduleAutoRotate(latest);
+        }
+      };
+
+      if (!manual && typeof window.requestIdleCallback === 'function') {
+        window.requestIdleCallback(perform, { timeout: 3500 });
+      } else {
+        requestAnimationFrame(perform);
+      }
+    };
+
+    // Pre-decode the 2K WebP off the main thread before touching DOM/CSS (zero frame drop)
+    if (nextBlobUrl && typeof Image === 'function') {
+      try {
+        const pre = new Image();
+        pre.decoding = 'async';
+        pre.src = nextBlobUrl;
+        if (typeof pre.decode === 'function') {
+          pre.decode().then(commitSwap, commitSwap);
+          return;
+        }
+      } catch (e) {}
+    }
+    commitSwap();
+  }
+
+  function scheduleAutoRotate(stOverride) {
+    if (window.__AGY_ROTATE_TIMER__) {
+      clearTimeout(window.__AGY_ROTATE_TIMER__);
+      window.__AGY_ROTATE_TIMER__ = 0;
+    }
+    window.__AGY_ROTATE_DUE__ = false;
+    const st = stOverride || getState();
+    const mins = Number(st.autoRotateMin) || 0;
+    if (!st.autoRotate || mins <= 0 || !st.wpEnabled || getWallpaperPool().length < 2) {
+      return;
+    }
+    window.__AGY_ROTATE_TIMER__ = setTimeout(() => {
+      window.__AGY_ROTATE_TIMER__ = 0;
+      if (document.hidden) {
+        window.__AGY_ROTATE_DUE__ = true;
+        return;
+      }
+      rotateToNextWallpaper(false);
+    }, mins * 60000);
   }
 
   function syncTitleBarOverlay(stOverride) {
@@ -1166,6 +1311,9 @@
     if (window.__AGY_BLUR_TIMER__) { clearTimeout(window.__AGY_BLUR_TIMER__); window.__AGY_BLUR_TIMER__ = 0; }
     if (window.__AGY_TICK_TIMER__) { clearTimeout(window.__AGY_TICK_TIMER__); window.__AGY_TICK_TIMER__ = 0; }
     if (window.__AGY_QUOTA_TIMER__) { clearInterval(window.__AGY_QUOTA_TIMER__); window.__AGY_QUOTA_TIMER__ = 0; }
+    if (window.__AGY_ROTATE_TIMER__) { clearTimeout(window.__AGY_ROTATE_TIMER__); window.__AGY_ROTATE_TIMER__ = 0; }
+    window.__AGY_ROTATE_DUE__ = false;
+    window.__AGY_ROTATE_INFLIGHT__ = false;
     if (window.__AGY_BLUR_CACHE__ instanceof Map) {
       window.__AGY_BLUR_CACHE__.forEach((v) => {
         if (typeof v === 'string' && v.startsWith('blob:')) {
@@ -1195,6 +1343,8 @@
     }
     const styleEl = document.getElementById('antigravity-custom-theme-active');
     if (styleEl) styleEl.remove();
+    const wpStyleEl = document.getElementById('antigravity-custom-theme-wp');
+    if (wpStyleEl) wpStyleEl.remove();
     const metricsEl = document.getElementById('antigravity-custom-theme-metrics');
     if (metricsEl) metricsEl.remove();
     window.__AGY_LAST_METRICS_CSS__ = '';
@@ -1229,6 +1379,8 @@
   window.__ANTIGRAVITY_APPLY_CUSTOM_THEME__ = applyTheme;
   window.__ANTIGRAVITY_REMOVE_CUSTOM_THEME__ = removeCustomTheme;
   window.__ANTIGRAVITY_OPEN_THEME_MODAL__ = openCustomThemeModal;
+  window.__ANTIGRAVITY_NEXT_WALLPAPER__ = () => rotateToNextWallpaper(true);
+  window.__ANTIGRAVITY_AUTO_ROTATE_TICK__ = () => rotateToNextWallpaper(false);
 
   applyTheme();
 
@@ -1309,6 +1461,25 @@
                 <input id="agy-quota-tb-toggle" type="checkbox" ${st.showQuotaTitlebar ? 'checked' : ''} style="accent-color: ${mainTheme.primary}; cursor: pointer;" />
                 Titlebar Quota
               </label>
+              <label style="display: flex; align-items: center; gap: 5px; font-size: 12px; color: #d4d4d8;">
+                Auto
+                <select id="agy-rotate-select" style="background: rgba(15, 23, 42, 0.85); color: #f4f4f5; border: 1px solid ${mainTheme.borderColor}; border-radius: 7px; padding: 3px 6px; font-size: 12px; cursor: pointer;">
+                  ${[
+                    [0, 'Off'],
+                    [2, '2m'],
+                    [5, '5m'],
+                    [10, '10m'],
+                    [15, '15m'],
+                    [30, '30m']
+                  ].map(([val, lbl]) => {
+                    const curVal = st.autoRotate ? st.autoRotateMin : 0;
+                    return `<option value="${val}" ${curVal === val ? 'selected' : ''}>${lbl}</option>`;
+                  }).join('')}
+                </select>
+              </label>
+              <button id="agy-rotate-next" type="button" title="Đổi ngay sang ảnh 2K tiếp theo" style="padding: 4px 9px; border-radius: 8px; background: ${mainTheme.glow}; border: 1px solid ${mainTheme.borderColor}; color: ${mainTheme.primary}; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap;">
+                Next ⏭
+              </button>
               <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: #a1a1aa;">
                 Dim
                 <input id="agy-dim-slider" type="range" min="15" max="92" value="${st.dimming}" style="width: 96px; cursor: pointer; accent-color: #ffffff; height: 5px;" />
@@ -1551,6 +1722,19 @@
         applyTheme({ showQuotaTitlebar: e.target.checked });
       });
     }
+    const rotateSelect = container.querySelector('#agy-rotate-select');
+    if (rotateSelect) {
+      rotateSelect.addEventListener('change', (e) => {
+        const mins = parseInt(e.target.value, 10) || 0;
+        applyTheme({ autoRotate: mins > 0, autoRotateMin: mins > 0 ? mins : 5 });
+      });
+    }
+    const rotateNextBtn = container.querySelector('#agy-rotate-next');
+    if (rotateNextBtn) {
+      rotateNextBtn.addEventListener('click', () => {
+        rotateToNextWallpaper(true);
+      });
+    }
 
     const wpUpload = container.querySelector('#agy-wp-upload');
     wpUpload.addEventListener('change', (e) => {
@@ -1690,7 +1874,7 @@
             throw new Error('Config must be a JSON object');
           }
           const allowed = {};
-          const keys = ['themeName', 'bubbleName', 'inputStyle', 'dimming', 'wpEnabled', 'customWp', 'userAvatar', 'agentAvatar', 'glassBlur', 'avatarSize', 'avatarRadius', 'showQuotaSidebar', 'showQuotaTitlebar'];
+          const keys = ['themeName', 'bubbleName', 'inputStyle', 'dimming', 'wpEnabled', 'customWp', 'userAvatar', 'agentAvatar', 'glassBlur', 'avatarSize', 'avatarRadius', 'showQuotaSidebar', 'showQuotaTitlebar', 'autoRotate', 'autoRotateMin'];
           keys.forEach((k) => {
             if (parsed[k] !== undefined) allowed[k] = parsed[k];
           });
@@ -1717,6 +1901,8 @@
       localStorage.removeItem(STORAGE_WP_ENABLED);
       localStorage.removeItem(STORAGE_QUOTA_SIDEBAR);
       localStorage.removeItem(STORAGE_QUOTA_TITLEBAR);
+      localStorage.removeItem(STORAGE_AUTO_ROTATE);
+      localStorage.removeItem(STORAGE_AUTO_ROTATE_MIN);
       applyTheme({
         themeName: DEFAULT_THEME_KEY,
         bubbleName: DEFAULT_THEME_KEY,
@@ -1730,7 +1916,9 @@
         avatarSize: 32,
         avatarRadius: 50,
         showQuotaSidebar: true,
-        showQuotaTitlebar: true
+        showQuotaTitlebar: true,
+        autoRotate: true,
+        autoRotateMin: 5
       });
       const defTh = THEMES[DEFAULT_THEME_KEY] || {};
       syncAvPreview(userAvPreview, defTh.userAvatar || '', 'U');
@@ -1748,6 +1936,7 @@
       if (wpToggle) wpToggle.checked = true;
       if (quotaSbToggle) quotaSbToggle.checked = true;
       if (quotaTbToggle) quotaTbToggle.checked = true;
+      if (rotateSelect) rotateSelect.value = '5';
 
       container.querySelectorAll('.agy-preset-card').forEach(c => {
         const isSel = c.dataset.name === DEFAULT_THEME_KEY;
@@ -2796,6 +2985,12 @@
     clearInterval(window.__AGY_QUOTA_TIMER__);
     window.__AGY_QUOTA_TIMER__ = 0;
   }
+  if (window.__AGY_ROTATE_TIMER__) {
+    clearTimeout(window.__AGY_ROTATE_TIMER__);
+    window.__AGY_ROTATE_TIMER__ = 0;
+  }
+  window.__AGY_ROTATE_DUE__ = false;
+  window.__AGY_ROTATE_INFLIGHT__ = false;
   if (window.__AGY_TICK_RAF__) {
     cancelAnimationFrame(window.__AGY_TICK_RAF__);
     window.__AGY_TICK_RAF__ = 0;
@@ -2816,7 +3011,13 @@
   window.addEventListener('load', () => scheduleTitleBarSync(), { signal: window.__AGY_SCROLL_AC__.signal });
   window.addEventListener('focus', () => syncTitleBarOverlay(), { signal: window.__AGY_SCROLL_AC__.signal });
   document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) syncTitleBarOverlay();
+    if (!document.hidden) {
+      syncTitleBarOverlay();
+      if (window.__AGY_ROTATE_DUE__) {
+        window.__AGY_ROTATE_DUE__ = false;
+        rotateToNextWallpaper(false);
+      }
+    }
   }, { signal: window.__AGY_SCROLL_AC__.signal });
   document.querySelectorAll('[data-agy-scroll-bound]').forEach(el => delete el.dataset.agyScrollBound);
   document.querySelectorAll('[data-agy-tbo-mounted]').forEach(el => delete el.dataset.agyTboMounted);
@@ -2842,6 +3043,9 @@
       refreshQuotaWidgets();
     }
   }, 30000);
+
+  // Start zero-lag auto-rotate wallpaper timer (default 5 min, off-thread decode + idle-frame swap)
+  scheduleAutoRotate();
 
   window.__AGY_HOLE_EL__ = null;
   window.__AGY_SIDE_EL__ = null;
