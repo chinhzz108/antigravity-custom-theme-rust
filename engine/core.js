@@ -28,6 +28,7 @@
 
   const CHECK_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
   const REFRESH_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg>`;
+  const NEXT_WP_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/></svg>`;
 
   const INPUT_STYLES = {
     'sync': {
@@ -1122,7 +1123,8 @@
         color: ${uiInk};
         overflow: hidden;
       }
-      #agy-quota-sb-sync:hover {
+      #agy-quota-sb-sync:hover,
+      #agy-quota-sb-next:hover {
         background: ${isLight ? 'rgba(15, 23, 42, 0.08)' : 'rgba(255, 255, 255, 0.11)'} !important;
         color: ${mainTheme.primary} !important;
       }
@@ -1165,11 +1167,16 @@
     `;
 
     const staleWpOverride = document.getElementById('antigravity-custom-theme-wp');
-    if (staleWpOverride) staleWpOverride.textContent = '';
+    if (staleWpOverride) staleWpOverride.remove();
     window.__AGY_ROTATE_ACTIVE_WP__ = st.themeName;
 
-    syncTitleBarOverlay(st);
-    scheduleTitleBarSync(st);
+    if (opts.fromAutoRotate) {
+      // Only send TitleBarOverlay IPC if light/dark/enabled state actually changed
+      syncTitleBarOverlay(st, false);
+    } else {
+      syncTitleBarOverlay(st, true);
+      scheduleTitleBarSync(st);
+    }
     if (typeof injectMainSidebarButton === 'function') {
       injectMainSidebarButton();
     }
@@ -1183,43 +1190,6 @@
 
   function getWallpaperPool() {
     return THEME_KEYS.filter((k) => THEMES[k] && THEMES[k].wallpaper);
-  }
-
-  // Ultra-lightweight (<0.5 ms) isolated wallpaper-only layer swap for zero-lag 5-minute auto-rotation.
-  // Avoids reparsing the 23 KB main theme stylesheet, Electron IPC titlebar sync, or DOM rebuilds.
-  function applyWallpaperLayerOnly(wpThemeName, stOverride) {
-    const st = stOverride || getState();
-    const wpTh = THEMES[wpThemeName];
-    if (!wpTh || !wpTh.wallpaper || !st.wpEnabled) return;
-
-    const wpUrl = toShortBlobUrl(wpTh.wallpaper);
-    const overlayAlpha = wpTh.clearBackdrop
-      ? Math.min(0.92, Math.max(0.0, ((st.dimming - 10) / 82) * 0.85))
-      : Math.min(0.92, Math.max(0.12, (st.dimming / 100) * 0.78));
-    const overlayRgb = wpTh.overlayRgb || '10, 7, 6';
-    const bgPosition = wpTh.bgPosition || 'center center';
-    const secondaryGlowStop = wpTh.secondaryGlow
-      ? `, radial-gradient(circle at 22% 72%, ${wpTh.secondaryGlow} 0%, transparent 55%)`
-      : '';
-    const bgLayers = wpTh.clearBackdrop
-      ? `linear-gradient(180deg, rgba(${overlayRgb}, ${overlayAlpha}) 0%, rgba(${overlayRgb}, ${overlayAlpha}) 100%), url("${wpUrl}")`
-      : `radial-gradient(circle at 75% 40%, ${wpTh.glow} 0%, transparent 65%)${secondaryGlowStop}, linear-gradient(180deg, rgba(${overlayRgb}, ${overlayAlpha * 0.85}) 0%, rgba(${overlayRgb}, ${overlayAlpha}) 100%), url("${wpUrl}")`;
-
-    let wpStyleEl = document.getElementById('antigravity-custom-theme-wp');
-    if (!wpStyleEl) {
-      wpStyleEl = document.createElement('style');
-      wpStyleEl.id = 'antigravity-custom-theme-wp';
-      document.head.appendChild(wpStyleEl);
-    }
-    wpStyleEl.textContent = `.agy-shell{background-image:${bgLayers}!important;background-position:${bgPosition}!important;}body[data-has-browser-hole="true"] .agy-shell[data-agy-hole-active="1"]::after{background-image:${bgLayers}!important;background-position:${bgPosition}!important;}`;
-    window.__AGY_ROTATE_ACTIVE_WP__ = wpThemeName;
-
-    // Update pre-baked L-glass asynchronously (0 ms LRU cache hit after first cycle)
-    const activeMain = THEMES[st.themeName] || wpTh;
-    if (activeMain.unifiedGlass && st.wpEnabled) {
-      const effectiveBlur = `${st.glassBlur}px`;
-      syncPrebakedGlass(wpUrl, overlayRgb, overlayAlpha, wpTh.headerBg || activeMain.headerBg || '', effectiveBlur, 0);
-    }
   }
 
   function rotateToNextWallpaper(manual = false) {
@@ -1245,20 +1215,16 @@
         if (!latest.wpEnabled) return;
         if (!manual && (!latest.autoRotate || latest.customWp)) return;
 
-        if (manual) {
-          applyTheme(
-            { themeName: nextName, bubbleName: nextName, customWp: '' },
-            { skipSave: false }
-          );
-          const modalBody = document.getElementById('agy-theme-modal-body');
-          const backdrop = document.getElementById('agy-custom-theme-modal-backdrop');
-          if (modalBody && backdrop && backdrop.style.display !== 'none' && typeof renderThemePanels === 'function') {
-            renderThemePanels(modalBody);
-          }
-        } else {
-          // Zero-lag (<0.5 ms) wallpaper-only swap on idle frame — zero stylesheet reparse, zero IPC, zero disk I/O
-          applyWallpaperLayerOnly(nextName, latest);
-          scheduleAutoRotate(latest);
+        // Full synchronized swap: wallpaper + borders + ornaments + Quota HUD motif + titlebar pills!
+        // Runs in ~1.5 ms (zero forced layout reflow, off-thread decoded, LRU-cached L-glass).
+        applyTheme(
+          { themeName: nextName, bubbleName: nextName, customWp: '' },
+          { skipSave: !manual, fromAutoRotate: !manual }
+        );
+        const modalBody = document.getElementById('agy-theme-modal-body');
+        const backdrop = document.getElementById('agy-custom-theme-modal-backdrop');
+        if (modalBody && backdrop && backdrop.style.display !== 'none' && typeof renderThemePanels === 'function') {
+          renderThemePanels(modalBody);
         }
       };
 
@@ -1305,15 +1271,17 @@
     }, mins * 60000);
   }
 
-  function syncTitleBarOverlay(stOverride) {
+  function syncTitleBarOverlay(stOverride, force = false) {
     const st = stOverride || getState();
     const activeTh = THEMES[st.themeName] || THEMES[DEFAULT_THEME_KEY] || {};
+    const color = st.wpEnabled ? '#00000000' : '#111114';
+    const symbolColor = (st.wpEnabled && activeTh.isLight) ? '#0f172a' : '#f8fafc';
+    const key = `${color}|${symbolColor}`;
+    if (!force && window.__AGY_LAST_TBO_KEY__ === key) return;
+    window.__AGY_LAST_TBO_KEY__ = key;
     if (window.electronNative && typeof window.electronNative.setTitleBarOverlay === 'function') {
       try {
-        window.electronNative.setTitleBarOverlay({
-          color: st.wpEnabled ? '#00000000' : '#111114',
-          symbolColor: (st.wpEnabled && activeTh.isLight) ? '#0f172a' : '#f8fafc'
-        });
+        window.electronNative.setTitleBarOverlay({ color, symbolColor });
       } catch (e) {}
     }
   }
@@ -2472,8 +2440,11 @@
   function findSidebarSettingsButton() {
     const sidebar = document.querySelector('[data-testid="sidebar-split"] > :first-child');
     if (!sidebar) return null;
+    const direct = sidebar.querySelector('[data-testid="settings-button"]');
+    if (direct) return direct;
+    // Use textContent (zero layout reflow, unlike innerText)
     return Array.from(sidebar.querySelectorAll('button, a')).find(
-      el => (el.innerText || '').trim() === 'Settings'
+      el => (el.textContent || '').trim() === 'Settings'
     ) || null;
   }
 
@@ -2594,23 +2565,86 @@
     return cache.groups.find(g => /gemini/i.test(g.fullLabel || g.label || '')) || null;
   }
 
-  function animeBarPalette(pct, isLight, mainTheme) {
-    if (pct >= 60) {
-      return isLight
-        ? { text: '#047857', grad: 'linear-gradient(90deg, #10b981 0%, #06b6d4 100%)', tip: '#ecfdf5', glow: 'rgba(16, 185, 129, 0.40)' }
-        : { text: '#67e8f9', grad: `linear-gradient(90deg, ${mainTheme.primary || '#38bdf8'} 0%, ${mainTheme.secondary || '#a78bfa'} 55%, #34d399 100%)`, tip: '#ffffff', glow: 'rgba(103, 232, 249, 0.55)' };
+  function getAnimeHudMotif(themeName) {
+    const name = String(themeName || '');
+    if (/itachi/i.test(name)) {
+      return {
+        id: 'itachi',
+        sym1: '✦',
+        sym2: '◈',
+        pillSep: '✦',
+        label5h: '5-HOUR CHAKRA',
+        label1w: '1-WEEK MANGEKYOU',
+        shortName: name.replace(/^Itachi\s+/i, 'Itachi · ')
+      };
     }
-    if (pct >= 25) {
+    if (/kakashi/i.test(name)) {
+      return {
+        id: /kamui/i.test(name) ? 'kakashi-kamui' : 'kakashi',
+        sym1: '⚡',
+        sym2: '◈',
+        pillSep: '⚡',
+        label5h: '5-HOUR CHIDORI',
+        label1w: '1-WEEK KAMUI',
+        shortName: name.replace(/^Kakashi\s+/i, 'Kakashi · ')
+      };
+    }
+    return {
+      id: 'celestial',
+      sym1: '✦',
+      sym2: '◈',
+      pillSep: '◆',
+      label5h: '5-HOUR ENERGY',
+      label1w: '1-WEEK STARLIGHT',
+      shortName: name || 'Cosmic'
+    };
+  }
+
+  function animeBarPalette(pct, isLight, mainTheme, slot = '5h') {
+    const pCol = mainTheme.primary || '#38bdf8';
+    const sCol = mainTheme.secondary || pCol;
+    if (pct >= 45) {
+      if (isLight) {
+        return slot === '1w'
+          ? { text: '#0f766e', grad: `linear-gradient(90deg, ${sCol} 0%, ${pCol} 100%)`, tip: '#ecfdf5', glow: 'rgba(13, 148, 136, 0.36)' }
+          : { text: '#047857', grad: `linear-gradient(90deg, ${pCol} 0%, ${sCol} 100%)`, tip: '#ecfdf5', glow: 'rgba(16, 185, 129, 0.38)' };
+      }
+      return slot === '1w'
+        ? { text: sCol, grad: `linear-gradient(90deg, ${sCol} 0%, ${pCol} 100%)`, tip: '#ffffff', glow: mainTheme.secondaryGlow || mainTheme.glow || 'rgba(56, 189, 248, 0.45)' }
+        : { text: pCol, grad: `linear-gradient(90deg, ${pCol} 0%, ${sCol} 100%)`, tip: '#ffffff', glow: mainTheme.glow || 'rgba(251, 191, 36, 0.45)' };
+    }
+    if (pct >= 20) {
       return isLight
         ? { text: '#b45309', grad: 'linear-gradient(90deg, #f59e0b 0%, #fbbf24 100%)', tip: '#fffbeb', glow: 'rgba(245, 158, 11, 0.40)' }
         : { text: '#fcd34d', grad: 'linear-gradient(90deg, #f59e0b 0%, #fbbf24 55%, #fde68a 100%)', tip: '#ffffff', glow: 'rgba(251, 191, 36, 0.50)' };
     }
     return isLight
-      ? { text: '#be123c', grad: 'linear-gradient(90deg, #f43f5e 0%, #ec4899 100%)', tip: '#fff1f2', glow: 'rgba(244, 63, 94, 0.40)' }
-      : { text: '#fda4af', grad: 'linear-gradient(90deg, #f43f5e 0%, #ec4899 55%, #fb7185 100%)', tip: '#ffffff', glow: 'rgba(244, 63, 94, 0.55)' };
+      ? { text: '#be123c', grad: 'linear-gradient(90deg, #ef4444 0%, #ec4899 100%)', tip: '#fff1f2', glow: 'rgba(239, 68, 68, 0.40)' }
+      : { text: '#fda4af', grad: 'linear-gradient(90deg, #ef4444 0%, #f43f5e 55%, #fb7185 100%)', tip: '#ffffff', glow: 'rgba(244, 63, 94, 0.55)' };
   }
 
-  function animeStarSvg(primary, secondary, size = 14) {
+  function animeHudEmblemSvg(motifId, primary, secondary, size = 14) {
+    if (motifId === 'itachi' || motifId === 'kakashi-kamui') {
+      // Mangekyou Sharingan / Kamui crimson pinwheel emblem
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" style="flex-shrink:0;">
+        <circle cx="12" cy="12" r="10.2" fill="#180408" stroke="${primary}" stroke-width="1.6"/>
+        <circle cx="12" cy="12" r="8.2" fill="#dc2626"/>
+        <path d="M12 4 C15.8 6.4, 16.0 10.2, 12 12 C9.4 9.0, 9.6 5.6, 12 4 Z" fill="#09090b"/>
+        <path d="M18.9 16 C15.1 17.6, 12.0 16.2, 12 12 C15.7 11.6, 18.2 13.2, 18.9 16 Z" fill="#09090b"/>
+        <path d="M5.1 16 C5.8 13.2, 8.3 11.6, 12 12 C12.0 16.2, 8.9 17.6, 5.1 16 Z" fill="#09090b"/>
+        <circle cx="12" cy="12" r="2.2" fill="${primary}" stroke="#09090b" stroke-width="0.9"/>
+        <circle cx="12" cy="12" r="0.85" fill="#fef2f2"/>
+      </svg>`;
+    }
+    if (motifId === 'kakashi') {
+      // Electric Chidori lightning crest
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" style="flex-shrink:0;">
+        <circle cx="12" cy="12" r="10" fill="${primary}" opacity="0.16"/>
+        <polygon points="13.8 2 4.6 13.2 11.4 13.2 10.2 22 19.4 10.8 12.6 10.8 13.8 2" fill="${primary}" stroke="#ffffff" stroke-width="0.9" stroke-linejoin="round"/>
+        <path d="M19.5 3.5 L20.2 5.2 L21.9 5.9 L20.2 6.6 L19.5 8.3 L18.8 6.6 L17.1 5.9 L18.8 5.2 Z" fill="${secondary || '#ffffff'}" opacity="0.95"/>
+      </svg>`;
+    }
+    // Celestial 4-point starlight emblem (WLOP Cosmic & pure-CSS presets)
     return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" style="flex-shrink:0;">
       <path d="M12 1.8 L14.5 9.5 L22.2 12 L14.5 14.5 L12 22.2 L9.5 14.5 L1.8 12 L9.5 9.5 Z" fill="${primary}" opacity="0.96"/>
       <path d="M12 5.2 L13.4 10.6 L18.8 12 L13.4 13.4 L12 18.8 L10.6 13.4 L5.2 12 L10.6 10.6 Z" fill="#ffffff" opacity="0.82"/>
@@ -2618,7 +2652,48 @@
     </svg>`;
   }
 
-  function animeCornerOrnament(primary, secondary) {
+  function animeCornerOrnament(motifId, primary, secondary) {
+    if (motifId === 'itachi') {
+      // Blood Moon crescent + Uchiha crimson corners + drifting crow feathers
+      return `
+        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" style="position:absolute;top:2px;left:2px;pointer-events:none;opacity:0.74;">
+          <path d="M2 14 L2 5 Q2 2 5 2 L14 2" stroke="${primary}" stroke-width="1.45" stroke-linecap="round"/>
+          <circle cx="6.2" cy="6.2" r="1.9" fill="${primary}"/>
+          <circle cx="6.2" cy="6.2" r="0.7" fill="#09090b"/>
+        </svg>
+        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" style="position:absolute;bottom:2px;right:2px;transform:rotate(180deg);pointer-events:none;opacity:0.58;">
+          <path d="M2 14 L2 5 Q2 2 5 2 L14 2" stroke="${secondary || primary}" stroke-width="1.3" stroke-linecap="round"/>
+          <circle cx="6" cy="6" r="1.3" fill="${primary}"/>
+        </svg>
+        <svg xmlns="http://www.w3.org/2000/svg" width="126" height="78" viewBox="0 0 126 78" fill="none" style="position:absolute;top:-6px;right:-6px;pointer-events:none;opacity:0.22;">
+          <circle cx="96" cy="24" r="22" fill="${primary}" opacity="0.28"/>
+          <circle cx="96" cy="24" r="22" stroke="${primary}" stroke-width="0.9" opacity="0.65"/>
+          <path d="M50 20 C58 14, 68 15, 75 21 C67 23, 58 23, 50 20 Z" fill="${primary}"/>
+          <path d="M74 44 C82 39, 91 40, 97 45 C89 47, 81 47, 74 44 Z" fill="${secondary || primary}"/>
+          <path d="M100 54 C106 50, 113 51, 118 55 C112 57, 106 57, 100 54 Z" fill="${primary}" opacity="0.85"/>
+          <path d="M36 52 C42 48, 49 49, 54 53 C48 54, 42 54, 36 52 Z" fill="${secondary || primary}" opacity="0.7"/>
+        </svg>
+      `;
+    }
+    if (motifId === 'kakashi' || motifId === 'kakashi-kamui') {
+      // Chidori lightning corners + crackling electric arc watermark
+      return `
+        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" style="position:absolute;top:2px;left:2px;pointer-events:none;opacity:0.74;">
+          <path d="M2 14 L2 5 Q2 2 5 2 L14 2" stroke="${primary}" stroke-width="1.4" stroke-linecap="round"/>
+          <polyline points="5,11 8,7.5 6.8,6.5 11,4" stroke="${secondary || '#ffffff'}" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" style="position:absolute;bottom:2px;right:2px;transform:rotate(180deg);pointer-events:none;opacity:0.58;">
+          <path d="M2 14 L2 5 Q2 2 5 2 L14 2" stroke="${secondary || primary}" stroke-width="1.25" stroke-linecap="round"/>
+          <circle cx="5.8" cy="5.8" r="1.2" fill="${primary}"/>
+        </svg>
+        <svg xmlns="http://www.w3.org/2000/svg" width="124" height="76" viewBox="0 0 124 76" fill="none" style="position:absolute;top:-4px;right:-4px;pointer-events:none;opacity:0.22;">
+          <polyline points="26,64 46,48 54,53 76,30 85,35 114,10" stroke="${primary}" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"/>
+          <polyline points="48,68 68,51 74,55 98,36 118,28" stroke="${secondary || primary}" stroke-width="0.95" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M96 14 L97.6 18 L101.6 19.6 L97.6 21.2 L96 25.2 L94.4 21.2 L90.4 19.6 L94.4 18 Z" fill="${primary}"/>
+          <path d="M62 28 L63.2 31 L66.2 32.2 L63.2 33.4 L62 36.4 L60.8 33.4 L57.8 32.2 L60.8 31 Z" fill="${secondary || primary}"/>
+        </svg>
+      `;
+    }
     return `
       <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" style="position:absolute;top:2px;left:2px;pointer-events:none;opacity:0.68;">
         <path d="M2 13 L2 5 Q2 2 5 2 L13 2" stroke="${primary}" stroke-width="1.35" stroke-linecap="round"/>
@@ -2639,9 +2714,9 @@
     `;
   }
 
-  function renderAnimeGaugeBar(pct, heightPx, isLight, mainTheme) {
+  function renderAnimeGaugeBar(pct, heightPx, isLight, mainTheme, slot = '5h') {
     const p = Math.min(100, Math.max(0, Number(pct) || 0));
-    const pal = animeBarPalette(p, isLight, mainTheme);
+    const pal = animeBarPalette(p, isLight, mainTheme, slot);
     const trackBg = isLight ? 'rgba(15, 23, 42, 0.10)' : 'rgba(255, 255, 255, 0.08)';
     const tickCol = isLight ? 'rgba(255, 255, 255, 0.72)' : 'rgba(5, 9, 20, 0.62)';
     return `
@@ -2695,6 +2770,7 @@
     if (!pop) return;
     const st = getState();
     const mainTheme = THEMES[st.themeName] || THEMES[DEFAULT_THEME_KEY];
+    const motif = getAnimeHudMotif(st.themeName);
     const isLight = Boolean(mainTheme.isLight);
     const titleCol = isLight ? '#0f172a' : '#f8fafc';
     const labelCol = isLight ? '#1e293b' : '#e4e4e7';
@@ -2710,44 +2786,44 @@
     if (!gem) {
       gaugesHtml = `
         <div style="padding:16px 8px;text-align:center;font-size:12px;color:${mutedCol};line-height:1.5;">
-          Chưa đồng bộ năng lượng Gemini ✦<br/>Bấm <strong style="color:${mainTheme.primary};">Sync ngay</strong> để lấy hạn mức 5h &amp; 1 tuần.
+          Chưa đồng bộ năng lượng Gemini ${motif.sym1}<br/>Bấm <strong style="color:${mainTheme.primary};">Sync ngay</strong> để lấy hạn mức 5h &amp; 1 tuần.
         </div>
       `;
     } else {
       const blocks = [];
       if (gem.fiveHour) {
-        const pal = animeBarPalette(gem.fiveHour.pct, isLight, mainTheme);
+        const pal = animeBarPalette(gem.fiveHour.pct, isLight, mainTheme, '5h');
         const cd = formatCountdown(gem.fiveHour.refreshAt);
         blocks.push(`
           <div style="padding:9px 11px;border-radius:10px;background:${panelBg};border:1px solid ${panelBorder};margin-top:9px;">
             <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;">
               <span style="font-size:11px;font-weight:700;letter-spacing:0.45px;color:${labelCol};">
-                <span style="color:${mainTheme.primary};">✦</span> 5-HOUR ENERGY
+                <span style="color:${mainTheme.primary};">${motif.sym1}</span> ${motif.label5h}
               </span>
               <span style="display:flex;align-items:baseline;gap:6px;">
                 ${cd ? `<span style="font-size:10.5px;color:${mutedCol};">↻ ${cd}</span>` : ''}
                 <strong style="font-size:14.5px;color:${pal.text};font-variant-numeric:tabular-nums;">${gem.fiveHour.pct}%</strong>
               </span>
             </div>
-            ${renderAnimeGaugeBar(gem.fiveHour.pct, 7.5, isLight, mainTheme)}
+            ${renderAnimeGaugeBar(gem.fiveHour.pct, 7.5, isLight, mainTheme, '5h')}
           </div>
         `);
       }
       if (gem.weekly) {
-        const pal = animeBarPalette(gem.weekly.pct, isLight, mainTheme);
+        const pal = animeBarPalette(gem.weekly.pct, isLight, mainTheme, '1w');
         const cd = formatCountdown(gem.weekly.refreshAt);
         blocks.push(`
           <div style="padding:9px 11px;border-radius:10px;background:${panelBg};border:1px solid ${panelBorder};margin-top:8px;">
             <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;">
               <span style="font-size:11px;font-weight:700;letter-spacing:0.45px;color:${labelCol};">
-                <span style="color:${mainTheme.secondary || mainTheme.primary};">◈</span> 1-WEEK STARLIGHT
+                <span style="color:${mainTheme.secondary || mainTheme.primary};">${motif.sym2}</span> ${motif.label1w}
               </span>
               <span style="display:flex;align-items:baseline;gap:6px;">
                 ${cd ? `<span style="font-size:10.5px;color:${mutedCol};">↻ ${cd}</span>` : ''}
                 <strong style="font-size:14.5px;color:${pal.text};font-variant-numeric:tabular-nums;">${gem.weekly.pct}%</strong>
               </span>
             </div>
-            ${renderAnimeGaugeBar(gem.weekly.pct, 7.5, isLight, mainTheme)}
+            ${renderAnimeGaugeBar(gem.weekly.pct, 7.5, isLight, mainTheme, '1w')}
           </div>
         `);
       }
@@ -2756,24 +2832,31 @@
 
     pop.innerHTML = `
       <div id="agy-quota-popover-inner">
-        ${animeCornerOrnament(mainTheme.primary, mainTheme.secondary)}
+        ${animeCornerOrnament(motif.id, mainTheme.primary, mainTheme.secondary)}
         <div style="position:relative;z-index:1;">
           <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding-left:2px;">
             <div style="display:flex;align-items:center;gap:6px;">
-              ${animeStarSvg(mainTheme.primary, mainTheme.secondary, 15)}
+              ${animeHudEmblemSvg(motif.id, mainTheme.primary, mainTheme.secondary, 16)}
               <span style="font-size:12.5px;font-weight:750;letter-spacing:0.8px;color:${titleCol};">GEMINI QUOTA</span>
-              ${badge ? `<span style="font-size:9.5px;padding:1px 6px;border-radius:999px;background:${mainTheme.glow};color:${mainTheme.primary};border:1px solid ${mainTheme.borderColor};font-weight:700;letter-spacing:0.4px;">✦ ${badge.toUpperCase()}</span>` : ''}
+              ${badge ? `<span style="font-size:9.5px;padding:1px 6px;border-radius:999px;background:${mainTheme.glow};color:${mainTheme.primary};border:1px solid ${mainTheme.borderColor};font-weight:700;letter-spacing:0.4px;">${motif.sym1} ${badge.toUpperCase()}</span>` : ''}
             </div>
             <span style="font-size:10px;color:${mutedCol};">${cache ? formatAge(cache.syncedAt) : ''}</span>
           </div>
-          <div style="height:1px;margin-top:7px;background:linear-gradient(90deg, ${mainTheme.borderColor} 0%, transparent 100%);"></div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px;font-size:10px;color:${mutedCol};padding-left:2px;">
+            <span>Theme: <strong style="color:${mainTheme.primary};font-weight:650;">${st.themeName}</strong></span>
+            <span>${st.autoRotate && st.autoRotateMin > 0 ? `Auto ${st.autoRotateMin}m` : 'Static'}</span>
+          </div>
+          <div style="height:1px;margin-top:6px;background:linear-gradient(90deg, ${mainTheme.borderColor} 0%, transparent 100%);"></div>
           ${gaugesHtml}
-          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:11px;padding-top:9px;border-top:1px solid ${panelBorder};">
-            <button id="agy-quota-pop-sync" type="button" style="flex:1;display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:6px 10px;border-radius:8px;background:${mainTheme.glow};border:1px solid ${mainTheme.borderColor};color:${mainTheme.primary};font-size:11.5px;font-weight:650;cursor:pointer;">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:7px;margin-top:11px;padding-top:9px;border-top:1px solid ${panelBorder};">
+            <button id="agy-quota-pop-sync" type="button" style="flex:1;display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:6px 9px;border-radius:8px;background:${mainTheme.glow};border:1px solid ${mainTheme.borderColor};color:${mainTheme.primary};font-size:11.5px;font-weight:650;cursor:pointer;">
               <span class="${syncing ? 'agy-quota-spinning' : ''}" style="display:inline-flex;">${REFRESH_ICON_SVG}</span>
               <span>${syncing ? 'Đang đồng bộ...' : 'Sync ngay'}</span>
             </button>
-            <button id="agy-quota-pop-open" type="button" style="padding:6px 10px;border-radius:8px;background:${panelBg};border:1px solid ${panelBorder};color:${labelCol};font-size:11.5px;cursor:pointer;">
+            <button id="agy-quota-pop-next" type="button" title="Đổi ảnh nền + giao diện tiếp theo" style="padding:6px 9px;border-radius:8px;background:${panelBg};border:1px solid ${panelBorder};color:${labelCol};font-size:11.5px;cursor:pointer;display:inline-flex;align-items:center;gap:3px;">
+              ${NEXT_WP_ICON_SVG}
+            </button>
+            <button id="agy-quota-pop-open" type="button" style="padding:6px 9px;border-radius:8px;background:${panelBg};border:1px solid ${panelBorder};color:${labelCol};font-size:11.5px;cursor:pointer;">
               Models ↗
             </button>
           </div>
@@ -2786,6 +2869,13 @@
       syncBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         syncQuotaFromSettingsUI(false);
+      });
+    }
+    const nextBtn = pop.querySelector('#agy-quota-pop-next');
+    if (nextBtn) {
+      nextBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        rotateToNextWallpaper(true);
       });
     }
     const openBtn = pop.querySelector('#agy-quota-pop-open');
@@ -2819,13 +2909,14 @@
     }
 
     const mainTheme = THEMES[st.themeName] || THEMES[DEFAULT_THEME_KEY];
+    const motif = getAnimeHudMotif(st.themeName);
     const isLight = Boolean(mainTheme.isLight);
     const mutedCol = isLight ? '#475569' : '#94a3b8';
     const cache = readQuotaCache();
     const gem = getGeminiGroup(cache);
     const syncing = Boolean(window.__AGY_QUOTA_SYNCING__);
     const badge = cache && cache.plan ? shortPlanBadge(cache.plan) : '';
-    const renderKey = `anime-v3|${st.themeName}|${isLight}|${syncing}|${cache ? cache.syncedAt : 0}|${Math.floor(Date.now() / 30000)}`;
+    const renderKey = `anime-v4|${st.themeName}|${isLight}|${syncing}|${cache ? cache.syncedAt : 0}|${Math.floor(Date.now() / 30000)}`;
     if (card.dataset.agyRenderKey === renderKey) return;
     card.dataset.agyRenderKey = renderKey;
 
@@ -2834,64 +2925,69 @@
       bodyHtml = `
         <button id="agy-quota-sb-init" type="button" style="width:100%;margin-top:7px;padding:6px 8px;border-radius:8px;background:${mainTheme.glow};border:1px solid ${mainTheme.borderColor};color:${mainTheme.primary};font-size:11px;font-weight:650;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px;">
           <span class="${syncing ? 'agy-quota-spinning' : ''}" style="display:inline-flex;">${REFRESH_ICON_SVG}</span>
-          <span>${syncing ? 'Đang lấy quota...' : '✦ Sync Gemini Quota'}</span>
+          <span>${syncing ? 'Đang lấy quota...' : `${motif.sym1} Sync Gemini Quota`}</span>
         </button>
       `;
     } else {
       const h = gem.fiveHour;
       const w = gem.weekly;
-      const hPal = h ? animeBarPalette(h.pct, isLight, mainTheme) : null;
-      const wPal = w ? animeBarPalette(w.pct, isLight, mainTheme) : null;
+      const hPal = h ? animeBarPalette(h.pct, isLight, mainTheme, '5h') : null;
+      const wPal = w ? animeBarPalette(w.pct, isLight, mainTheme, '1w') : null;
       const hCd = h ? formatCountdown(h.refreshAt) : '';
       const wCd = w ? formatCountdown(w.refreshAt) : '';
 
       bodyHtml = `
         ${h ? `
-        <div title="Gemini 5-Hour Limit: ${h.pct}%${hCd ? ' • Reset sau ' + hCd : ''}" style="margin-top:7px;">
+        <div title="Gemini ${motif.label5h}: ${h.pct}%${hCd ? ' • Reset sau ' + hCd : ''}" style="margin-top:7px;">
           <div style="display:flex;justify-content:space-between;align-items:center;font-size:10.5px;line-height:1.2;margin-bottom:4px;">
             <span style="display:inline-flex;align-items:center;gap:4px;font-weight:700;letter-spacing:0.35px;">
-              <span style="color:${mainTheme.primary};font-size:9.5px;">✦</span>
+              <span style="color:${mainTheme.primary};font-size:9.5px;">${motif.sym1}</span>
               <span>5H</span>
               ${hCd ? `<span style="font-size:9.5px;font-weight:500;color:${mutedCol};padding:0.5px 5px;border-radius:999px;background:${isLight ? 'rgba(15,23,42,0.06)' : 'rgba(255,255,255,0.07)'};">${hCd}</span>` : ''}
             </span>
             <strong style="color:${hPal.text};font-size:11.5px;font-weight:750;font-variant-numeric:tabular-nums;">${h.pct}%</strong>
           </div>
-          ${renderAnimeGaugeBar(h.pct, 6, isLight, mainTheme)}
+          ${renderAnimeGaugeBar(h.pct, 6, isLight, mainTheme, '5h')}
         </div>
         ` : ''}
         ${w ? `
-        <div title="Gemini Weekly Limit: ${w.pct}%${wCd ? ' • Reset sau ' + wCd : ''}" style="margin-top:7px;">
+        <div title="Gemini ${motif.label1w}: ${w.pct}%${wCd ? ' • Reset sau ' + wCd : ''}" style="margin-top:7px;">
           <div style="display:flex;justify-content:space-between;align-items:center;font-size:10.5px;line-height:1.2;margin-bottom:4px;">
             <span style="display:inline-flex;align-items:center;gap:4px;font-weight:700;letter-spacing:0.35px;">
-              <span style="color:${mainTheme.secondary || mainTheme.primary};font-size:9.5px;">◈</span>
+              <span style="color:${mainTheme.secondary || mainTheme.primary};font-size:9.5px;">${motif.sym2}</span>
               <span>1W</span>
               ${wCd ? `<span style="font-size:9.5px;font-weight:500;color:${mutedCol};padding:0.5px 5px;border-radius:999px;background:${isLight ? 'rgba(15,23,42,0.06)' : 'rgba(255,255,255,0.07)'};">${wCd}</span>` : ''}
             </span>
             <strong style="color:${wPal.text};font-size:11.5px;font-weight:750;font-variant-numeric:tabular-nums;">${w.pct}%</strong>
           </div>
-          ${renderAnimeGaugeBar(w.pct, 6, isLight, mainTheme)}
+          ${renderAnimeGaugeBar(w.pct, 6, isLight, mainTheme, '1w')}
         </div>
         ` : ''}
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:7px;padding-top:5px;border-top:1px solid ${isLight ? 'rgba(15,23,42,0.08)' : 'rgba(255,255,255,0.08)'};font-size:9.5px;color:${mutedCol};">
-          <span>✦ ${formatAge(cache.syncedAt)}</span>
-          <button id="agy-quota-sb-models" type="button" style="background:transparent;border:none;color:${mainTheme.primary};font-size:10px;font-weight:650;cursor:pointer;padding:0;">Models ↗</button>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:6px;margin-top:7px;padding-top:5px;border-top:1px solid ${isLight ? 'rgba(15,23,42,0.08)' : 'rgba(255,255,255,0.08)'};font-size:9.5px;color:${mutedCol};">
+          <span title="Theme: ${st.themeName} • Cập nhật ${formatAge(cache.syncedAt)}" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${motif.sym1} ${motif.shortName}</span>
+          <button id="agy-quota-sb-models" type="button" style="background:transparent;border:none;color:${mainTheme.primary};font-size:10px;font-weight:650;cursor:pointer;padding:0;flex-shrink:0;">Models ↗</button>
         </div>
       `;
     }
 
     card.innerHTML = `
       <div id="agy-quota-sidebar-inner">
-        ${animeCornerOrnament(mainTheme.primary, mainTheme.secondary)}
+        ${animeCornerOrnament(motif.id, mainTheme.primary, mainTheme.secondary)}
         <div style="position:relative;z-index:1;">
           <div style="display:flex;justify-content:space-between;align-items:center;gap:4px;padding-left:2px;">
             <div style="display:flex;align-items:center;gap:5px;min-width:0;">
-              ${animeStarSvg(mainTheme.primary, mainTheme.secondary, 13)}
+              ${animeHudEmblemSvg(motif.id, mainTheme.primary, mainTheme.secondary, 14)}
               <span style="font-size:11px;font-weight:750;letter-spacing:0.85px;">GEMINI</span>
-              ${badge ? `<span style="font-size:9px;padding:0.5px 5.5px;border-radius:999px;background:${mainTheme.glow};color:${mainTheme.primary};border:1px solid ${mainTheme.borderColor};font-weight:700;letter-spacing:0.4px;">✦ ${badge.toUpperCase()}</span>` : ''}
+              ${badge ? `<span style="font-size:9px;padding:0.5px 5.5px;border-radius:999px;background:${mainTheme.glow};color:${mainTheme.primary};border:1px solid ${mainTheme.borderColor};font-weight:700;letter-spacing:0.4px;">${motif.sym1} ${badge.toUpperCase()}</span>` : ''}
             </div>
-            <button id="agy-quota-sb-sync" type="button" title="Đồng bộ Gemini Quota (5h & 1w)" style="background:transparent;border:none;color:${mutedCol};cursor:pointer;padding:3px;display:inline-flex;align-items:center;justify-content:center;border-radius:999px;transition:all 0.15s ease;">
-              <span class="${syncing ? 'agy-quota-spinning' : ''}" style="display:inline-flex;">${REFRESH_ICON_SVG}</span>
-            </button>
+            <div style="display:inline-flex;align-items:center;gap:1px;">
+              <button id="agy-quota-sb-next" type="button" title="Đổi ngay sang ảnh 2K & giao diện tiếp theo" style="background:transparent;border:none;color:${mutedCol};cursor:pointer;padding:3px;display:inline-flex;align-items:center;justify-content:center;border-radius:999px;transition:all 0.15s ease;">
+                ${NEXT_WP_ICON_SVG}
+              </button>
+              <button id="agy-quota-sb-sync" type="button" title="Đồng bộ Gemini Quota (5h & 1w)" style="background:transparent;border:none;color:${mutedCol};cursor:pointer;padding:3px;display:inline-flex;align-items:center;justify-content:center;border-radius:999px;transition:all 0.15s ease;">
+                <span class="${syncing ? 'agy-quota-spinning' : ''}" style="display:inline-flex;">${REFRESH_ICON_SVG}</span>
+              </button>
+            </div>
           </div>
           <div style="height:1px;margin-top:4px;background:linear-gradient(90deg, ${mainTheme.borderColor} 0%, transparent 92%);"></div>
           ${bodyHtml}
@@ -2899,6 +2995,13 @@
       </div>
     `;
 
+    const nextBtn = card.querySelector('#agy-quota-sb-next');
+    if (nextBtn) {
+      nextBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        rotateToNextWallpaper(true);
+      });
+    }
     const syncBtn = card.querySelector('#agy-quota-sb-sync');
     if (syncBtn) {
       syncBtn.addEventListener('click', (e) => {
@@ -2950,18 +3053,19 @@
     }
 
     const mainTheme = THEMES[st.themeName] || THEMES[DEFAULT_THEME_KEY];
+    const motif = getAnimeHudMotif(st.themeName);
     const isLight = Boolean(mainTheme.isLight);
     const cache = readQuotaCache();
     const gem = getGeminiGroup(cache);
     const syncing = Boolean(window.__AGY_QUOTA_SYNCING__);
-    const pillKey = `anime-v3|${st.themeName}|${isLight}|${syncing}|${cache ? cache.syncedAt : 0}|${Math.floor(Date.now() / 30000)}`;
+    const pillKey = `anime-v4|${st.themeName}|${isLight}|${syncing}|${cache ? cache.syncedAt : 0}|${Math.floor(Date.now() / 30000)}`;
     if (pill.dataset.agyRenderKey === pillKey) return;
     pill.dataset.agyRenderKey = pillKey;
 
     if (!gem) {
-      pill.title = 'Bấm để xem hoặc đồng bộ Gemini Quota';
+      pill.title = `Bấm để xem hoặc đồng bộ Gemini Quota • Theme: ${st.themeName}`;
       pill.innerHTML = `
-        <span class="${syncing ? 'agy-quota-spinning' : ''}" style="display:inline-flex;">${syncing ? REFRESH_ICON_SVG : animeStarSvg(mainTheme.primary, mainTheme.secondary, 12)}</span>
+        <span class="${syncing ? 'agy-quota-spinning' : ''}" style="display:inline-flex;">${syncing ? REFRESH_ICON_SVG : animeHudEmblemSvg(motif.id, mainTheme.primary, mainTheme.secondary, 13)}</span>
         <span style="letter-spacing:0.3px;">${syncing ? 'Sync...' : 'Gemini'}</span>
       `;
       return;
@@ -2969,15 +3073,15 @@
 
     const h = gem.fiveHour;
     const w = gem.weekly;
-    const hCol = h ? animeBarPalette(h.pct, isLight, mainTheme).text : '#94a3b8';
-    const wCol = w ? animeBarPalette(w.pct, isLight, mainTheme).text : '#94a3b8';
+    const hCol = h ? animeBarPalette(h.pct, isLight, mainTheme, '5h').text : '#94a3b8';
+    const wCol = w ? animeBarPalette(w.pct, isLight, mainTheme, '1w').text : '#94a3b8';
     const hCd = h ? formatCountdown(h.refreshAt) : '';
 
-    pill.title = `Gemini Quota (${cache.plan || 'Antigravity'}) • 5h: ${h ? h.pct + '%' : '-'} • 1w: ${w ? w.pct + '%' : '-'} • Cập nhật ${formatAge(cache.syncedAt)}`;
+    pill.title = `Gemini Quota (${st.themeName}) • 5h: ${h ? h.pct + '%' : '-'} • 1w: ${w ? w.pct + '%' : '-'} • Cập nhật ${formatAge(cache.syncedAt)}`;
     pill.innerHTML = `
-      ${animeStarSvg(mainTheme.primary, mainTheme.secondary, 12)}
+      ${animeHudEmblemSvg(motif.id, mainTheme.primary, mainTheme.secondary, 13)}
       ${h ? `<span style="display:inline-flex;align-items:center;gap:3px;"><span style="opacity:0.68;font-size:10px;letter-spacing:0.25px;">5H</span><strong style="color:${hCol};font-variant-numeric:tabular-nums;">${h.pct}%</strong></span>` : ''}
-      ${h && w ? `<span style="color:${mainTheme.primary};opacity:0.8;font-size:8px;">◆</span>` : ''}
+      ${h && w ? `<span style="color:${mainTheme.primary};opacity:0.85;font-size:8.5px;">${motif.pillSep}</span>` : ''}
       ${w ? `<span style="display:inline-flex;align-items:center;gap:3px;"><span style="opacity:0.68;font-size:10px;letter-spacing:0.25px;">1W</span><strong style="color:${wCol};font-variant-numeric:tabular-nums;">${w.pct}%</strong></span>` : ''}
       ${hCd ? `<span style="opacity:0.68;font-size:10px;padding-left:4px;border-left:1px solid ${isLight ? 'rgba(15,23,42,0.16)' : 'rgba(255,255,255,0.18)'};">${hCd}</span>` : ''}
     `;
